@@ -35,16 +35,8 @@ Send data from the MIDI Out port of the MIDI device with nickname \<From Name\> 
 MIDI IN port of the device with nickname \<To Name\>. If more than one devices connect
 to the MIDI IN port of a particular device, then the streams are merged.
 
-## show \<Nickname\>
-Show the devices, if any, connected to the MIDI IN port of the MIDI device with nickname
-\<Nickname\>. For example:
 
-```
-MMMM-DDDD 1 lead refaceCS
-    MMMM-DDDD 1 keys Arturia Keylab Essential 88
-```
-
-## matrix
+## show
 Show a connection matrix of all MIDI devices connected to the hub. A blank box means "not
 connected" and an `x` in the box means "connected." For example, the following shows
 MIDI OUT of the "keys" device connected to the MIDI IN of the "lead" device.

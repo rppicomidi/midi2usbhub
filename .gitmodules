@@ -1,0 +1,6 @@
+[submodule "lib/midi_uart_lib"]
+	path = lib/midi_uart_lib
+	url = https://github.com/rppicomidi/midi_uart_lib.git
+[submodule "ext_lib/embedded-cli"]
+	path = ext_lib/embedded-cli
+	url = https://github.com/funbiscuit/embedded-cli.git
