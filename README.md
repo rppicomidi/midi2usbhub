@@ -12,8 +12,8 @@ MIDI too.
 
 # Project Status
 Very early public release to help with USB MIDI host hub testing. Definitely not done.
-Will crash from time to time when you plug in a new device. I have not investigated that
-yet.
+May crash from time to time when you plug in a new device. I have not investigated that
+yet. Not easily repeatable. UART MIDI is also implemented.
 
 ## Commands supported:
 - list
@@ -25,7 +25,6 @@ yet.
 - help
 
 ## TODO
-- support UART MIDI. Right now this is for testing the USB stack
 - local settings storage with LittleFs
 - backup and restore to flash drive
 

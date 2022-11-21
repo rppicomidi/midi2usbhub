@@ -104,8 +104,7 @@ namespace rppicomidi
         {
             printf("Received command: %s\r\n", name);
 
-            for (int i = 0; i < embeddedCliGetTokenCount(tokens); ++i)
-            {
+            for (int i = 0; i < embeddedCliGetTokenCount(tokens); ++i) {
                 printf("Arg %d : %s\r\n", i, embeddedCliGetToken(tokens, i + 1));
             }
         }
@@ -140,18 +139,18 @@ namespace rppicomidi
         static const uint NO_LED_GPIO = 255;
         static const uint LED_GPIO = 25;
 
-        static const uint8_t uart_devaddr = 128;
+        static const uint8_t uart_devaddr = CFG_TUH_DEVICE_MAX + 1;
 
         // Indexed by dev_addr
-        Midi_device_info attached_devices[CFG_TUH_DEVICE_MAX + 1];
+        // device addresses start at 1. location 0 is unused
+        // extra entry is for the UART MIDI Port
+        Midi_device_info attached_devices[CFG_TUH_DEVICE_MAX + 2];
 
         std::vector<Midi_out_port *> midi_out_port_list;
         std::vector<Midi_in_port *> midi_in_port_list;
 
-        Midi_device_info uart_midi_devinfo;
         Midi_in_port uart_midi_in_port;
         Midi_out_port uart_midi_out_port;
-        std::vector<std::string> used_nicknames;
         EmbeddedCli *cli;
     };
 }
@@ -168,8 +167,7 @@ void rppicomidi::Midi2usbh::blink_led()
     absolute_time_t now = get_absolute_time();
 
     int64_t diff = absolute_time_diff_us(previous_timestamp, now);
-    if (diff > 1000000)
-    {
+    if (diff > 1000000) {
         gpio_put(LED_GPIO, led_state);
         led_state = !led_state;
         previous_timestamp = now;
@@ -181,7 +179,7 @@ void rppicomidi::Midi2usbh::poll_usb_rx()
     for (auto &in_port : midi_in_port_list)
     {
         // poll each connected MIDI IN port only once per device address
-        if (in_port->cable == 0 && tuh_midi_configured(in_port->devaddr))
+        if (in_port->devaddr != uart_devaddr && in_port->cable == 0 && tuh_midi_configured(in_port->devaddr))
             tuh_midi_read_poll(in_port->devaddr);
     }
 }
@@ -191,8 +189,9 @@ void rppicomidi::Midi2usbh::flush_usb_tx()
     for (auto &out_port : midi_out_port_list)
     {
         // Call tuh_midi_stream_flush() once per output port device address
-        if (out_port->cable == 0 && tuh_midi_configured(out_port->devaddr))
-        {
+        if (out_port->devaddr != uart_devaddr &&
+                out_port->cable == 0 &&
+                tuh_midi_configured(out_port->devaddr)) {
             tuh_midi_stream_flush(out_port->devaddr);
         }
     }
@@ -204,16 +203,12 @@ void rppicomidi::Midi2usbh::poll_midi_uart_rx()
     // Pull any bytes received on the MIDI UART out of the receive buffer and
     // send them out via USB MIDI on virtual cable 0
     uint8_t nread = midi_uart_poll_rx_buffer(midi_uart_instance, rx, sizeof(rx));
-    if (nread > 0)
-    {
+    if (nread > 0) {
         // figure out where to send data from UART MIDI IN
-        for (auto &out_port : uart_midi_in_port.sends_data_to_list)
-        {
-            if (out_port->devaddr != 0 && attached_devices[out_port->devaddr].configured)
-            {
+        for (auto &out_port : uart_midi_in_port.sends_data_to_list) {
+            if (out_port->devaddr != 0 && attached_devices[out_port->devaddr].configured) {
                 uint32_t nwritten = tuh_midi_stream_write(out_port->devaddr, out_port->cable, rx, nread);
-                if (nwritten != nread)
-                {
+                if (nwritten != nread) {
                     TU_LOG1("Warning: Dropped %lu bytes receiving from UART MIDI In\r\n", nread - nwritten);
                 }
             }
@@ -224,8 +219,7 @@ void rppicomidi::Midi2usbh::poll_midi_uart_rx()
 void rppicomidi::Midi2usbh::cli_task()
 {
     int c = getchar_timeout_us(0);
-    if (c != PICO_ERROR_TIMEOUT)
-    {
+    if (c != PICO_ERROR_TIMEOUT) {
         embeddedCliReceiveChar(cli, c);
         embeddedCliProcess(cli);
     }
@@ -253,6 +247,18 @@ rppicomidi::Midi2usbh::Midi2usbh()
     uart_midi_in_port.cable = 0;
     uart_midi_in_port.devaddr = uart_devaddr;
     uart_midi_in_port.sends_data_to_list.clear();
+    uart_midi_in_port.nickname = "MIDI-IN-A";
+    uart_midi_out_port.cable = 0;
+    uart_midi_out_port.devaddr = uart_devaddr;
+    uart_midi_out_port.nickname = "MIDI-OUT-A";
+    attached_devices[uart_devaddr].vid = 0;
+    attached_devices[uart_devaddr].pid = 0;
+    attached_devices[uart_devaddr].product_name = "MIDI A";
+    attached_devices[uart_devaddr].rx_cables = 1;
+    attached_devices[uart_devaddr].tx_cables = 1;
+    attached_devices[uart_devaddr].configured = true;
+    midi_in_port_list.push_back(&uart_midi_in_port);
+    midi_out_port_list.push_back(&uart_midi_out_port);
     // Initialize the CLI
     cli = embeddedCliNewDefault();
     cli->onCommand = onCommandFn;
@@ -353,8 +359,7 @@ int main()
 {
     rppicomidi::Midi2usbh &instance = rppicomidi::Midi2usbh::instance();
 
-    while (1)
-    {
+    while (1) {
         tuh_task();
 
         instance.blink_led();
@@ -375,13 +380,11 @@ static uint16_t dev_string_buffer[128];
 static uint16_t langid;
 void rppicomidi::Midi2usbh::prod_str_cb(tuh_xfer_t *xfer)
 {
-    if (xfer->actual_len >= 4 /* long enough for at least one character*/)
-    {
+    if (xfer->actual_len >= 4 /* long enough for at least one character*/) {
         size_t nchars = (xfer->actual_len - 2) / 2;
         char str[nchars + 1];
         uint16_t *utf16le = (uint16_t *)(xfer->buffer + 2);
-        for (size_t idx = 0; idx < nchars; idx++)
-        {
+        for (size_t idx = 0; idx < nchars; idx++) {
             str[idx] = (uint8_t)utf16le[idx];
         }
         str[nchars] = '\0';
@@ -389,10 +392,8 @@ void rppicomidi::Midi2usbh::prod_str_cb(tuh_xfer_t *xfer)
         devinfo->product_name = std::string(str);
 
         char default_nickname[17];
-        for (auto &midi_in : instance().midi_in_port_list)
-        {
-            if (midi_in->devaddr == xfer->daddr)
-            {
+        for (auto &midi_in : instance().midi_in_port_list) {
+            if (midi_in->devaddr == xfer->daddr) {
                 snprintf(default_nickname, sizeof(default_nickname) - 1, "%04x-%04xF%d",
                          instance().attached_devices[xfer->daddr].vid,
                          instance().attached_devices[xfer->daddr].pid,
@@ -401,10 +402,8 @@ void rppicomidi::Midi2usbh::prod_str_cb(tuh_xfer_t *xfer)
                 midi_in->nickname = std::string(default_nickname);
             }
         }
-        for (auto &midi_out : instance().midi_out_port_list)
-        {
-            if (midi_out->devaddr == xfer->daddr)
-            {
+        for (auto &midi_out : instance().midi_out_port_list) {
+            if (midi_out->devaddr == xfer->daddr) {
                 snprintf(default_nickname, sizeof(default_nickname) - 1, "%04x-%04xT%d",
                          instance().attached_devices[xfer->daddr].vid,
                          instance().attached_devices[xfer->daddr].pid,
@@ -418,8 +417,7 @@ void rppicomidi::Midi2usbh::prod_str_cb(tuh_xfer_t *xfer)
 }
 static void langid_cb(tuh_xfer_t *xfer)
 {
-    if (xfer->actual_len >= 4 /*length, type, and one lang ID*/)
-    {
+    if (xfer->actual_len >= 4 /*length, type, and one lang ID*/) {
         langid = *((uint16_t *)(xfer->buffer + 2));
         tuh_descriptor_get_product_string(xfer->daddr, langid, dev_string_buffer, sizeof(dev_string_buffer), rppicomidi::Midi2usbh::prod_str_cb, xfer->user_data);
     }
@@ -432,16 +430,14 @@ void rppicomidi::Midi2usbh::tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, u
     TU_LOG2("MIDI device address = %u, IN endpoint %u has %u cables, OUT endpoint %u has %u cables\r\n",
             dev_addr, in_ep & 0xf, num_cables_rx, out_ep & 0xf, num_cables_tx);
     // As many MIDI IN ports and MIDI OUT ports as required
-    for (uint8_t cable = 0; cable < num_cables_rx; cable++)
-    {
+    for (uint8_t cable = 0; cable < num_cables_rx; cable++) {
         auto port = new Midi_in_port;
         port->cable = cable;
         port->devaddr = dev_addr;
 
         midi_in_port_list.push_back(port);
     }
-    for (uint8_t cable = 0; cable < num_cables_tx; cable++)
-    {
+    for (uint8_t cable = 0; cable < num_cables_tx; cable++) {
         auto port = new Midi_out_port;
         port->cable = cable;
         port->devaddr = dev_addr;
@@ -471,51 +467,39 @@ void tuh_mount_cb(uint8_t dev_addr)
 // Invoked when device with hid interface is un-mounted
 void rppicomidi::Midi2usbh::tuh_midi_unmount_cb(uint8_t dev_addr, uint8_t)
 {
-    for (std::vector<Midi_in_port *>::iterator it = midi_in_port_list.begin(); it != midi_in_port_list.end();)
-    {
-        if ((*it)->devaddr == dev_addr)
-        {
+    for (std::vector<Midi_in_port *>::iterator it = midi_in_port_list.begin(); it != midi_in_port_list.end();) {
+        if ((*it)->devaddr == dev_addr) {
             delete (*it);
             midi_in_port_list.erase(it);
         }
-        else
-        {
+        else {
             // remove all reference to the device address in existing sends_data_to_list elements
-            for (std::vector<Midi_out_port *>::iterator jt = (*it)->sends_data_to_list.begin(); jt != (*it)->sends_data_to_list.end();)
-            {
-                if ((*jt)->devaddr == dev_addr)
-                {
+            for (std::vector<Midi_out_port *>::iterator jt = (*it)->sends_data_to_list.begin(); jt != (*it)->sends_data_to_list.end();) {
+                if ((*jt)->devaddr == dev_addr) {
                     (*it)->sends_data_to_list.erase(jt);
                 }
-                else
-                {
+                else {
                     ++jt;
                 }
             }
-
             ++it;
         }
     }
-    for (std::vector<Midi_out_port *>::iterator it = uart_midi_in_port.sends_data_to_list.begin(); it != uart_midi_in_port.sends_data_to_list.end();)
-    {
-        if ((*it)->devaddr == dev_addr)
-        {
+
+    for (std::vector<Midi_out_port *>::iterator it = uart_midi_in_port.sends_data_to_list.begin(); it != uart_midi_in_port.sends_data_to_list.end();) {
+        if ((*it)->devaddr == dev_addr) {
             uart_midi_in_port.sends_data_to_list.erase(it);
         }
-        else
-        {
+        else {
             ++it;
         }
     }
-    for (std::vector<Midi_out_port *>::iterator it = midi_out_port_list.begin(); it != midi_out_port_list.end();)
-    {
-        if ((*it)->devaddr == dev_addr)
-        {
+    for (std::vector<Midi_out_port *>::iterator it = midi_out_port_list.begin(); it != midi_out_port_list.end();) {
+        if ((*it)->devaddr == dev_addr) {
             delete (*it);
             midi_out_port_list.erase(it);
         }
-        else
-        {
+        else {
             ++it;
         }
     }
@@ -539,8 +523,7 @@ void rppicomidi::Midi2usbh::tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packet
     {
         uint8_t cable_num;
         uint8_t buffer[48];
-        while (1)
-        {
+        while (1) {
             uint32_t bytes_read = tuh_midi_stream_read(dev_addr, &cable_num, buffer, sizeof(buffer));
             if (bytes_read == 0)
                 return;
@@ -583,22 +566,17 @@ void rppicomidi::Midi2usbh::static_list(EmbeddedCli *, char *, void *)
 {
     printf("USB ID      Port  Direction Nickname     Product Name\n");
 
-    for (size_t addr = 1; addr <= CFG_TUH_DEVICE_MAX; addr++)
-    {
+    for (size_t addr = 1; addr <= CFG_TUH_DEVICE_MAX + 1; addr++) {
         auto dev = instance().attached_devices[addr];
         if (dev.configured)
         {
             // printf("%04x-%04x    %d      %s    %s %s\r\n", dev.vid, dev.pid, 1, "FROM", "0944-0117-1 ", dev.product_name.c_str());
-            for (auto &in_port : instance().midi_in_port_list)
-            {
-                if (in_port->devaddr == addr)
-                {
+            for (auto &in_port : instance().midi_in_port_list) {
+                if (in_port->devaddr == addr) {
                     printf("%04x-%04x    %-2d     %s    %-12s %s\r\n", dev.vid, dev.pid, in_port->cable + 1,
                            "FROM", in_port->nickname.c_str(), dev.product_name.c_str());
-                    for (auto &out_port : instance().midi_out_port_list)
-                    {
-                        if (out_port->devaddr == addr && out_port->cable == in_port->cable)
-                        {
+                    for (auto &out_port : instance().midi_out_port_list) {
+                        if (out_port->devaddr == addr && out_port->cable == in_port->cable) {
                             printf("%04x-%04x    %-2d     %s    %-12s %s\r\n", dev.vid, dev.pid,
                                    out_port->cable + 1,
                                    " TO ", out_port->nickname.c_str(), dev.product_name.c_str());
@@ -621,8 +599,7 @@ void rppicomidi::Midi2usbh::static_connect(EmbeddedCli *cli, char *args, void *)
     auto from_nickname = std::string(embeddedCliGetToken(args, 1));
     auto to_nickname = std::string(embeddedCliGetToken(args, 2));
     for (auto &in_port : instance().midi_in_port_list) {
-        if (in_port->nickname == from_nickname)
-        {
+        if (in_port->nickname == from_nickname) {
             for (auto &out_port : instance().midi_out_port_list) {
                 if (out_port->nickname == to_nickname) {
                     in_port->sends_data_to_list.push_back(out_port);
@@ -649,11 +626,11 @@ void rppicomidi::Midi2usbh::static_disconnect(EmbeddedCli *cli, char *args, void
     for (auto &in_port : instance().midi_in_port_list) {
         if (in_port->nickname == from_nickname) {
             for (auto it = in_port->sends_data_to_list.begin();
-                it != in_port->sends_data_to_list.end(); ) {
+                 it != in_port->sends_data_to_list.end();) {
                 if ((*it)->nickname == to_nickname) {
                     in_port->sends_data_to_list.erase(it);
                     printf("%s disconnect %s: successful\r\n",
-                           in_port->nickname.c_str(),to_nickname.c_str());
+                           in_port->nickname.c_str(), to_nickname.c_str());
                     return;
                 }
                 else {
@@ -687,15 +664,15 @@ void rppicomidi::Midi2usbh::static_show(EmbeddedCli *, char *, void *)
         else
             printf("            |");
 
-        for (auto& midi_out : instance().midi_out_port_list) {
+        for (auto &midi_out : instance().midi_out_port_list) {
             size_t first_idx = line;
             if (midi_out->nickname.length() < 12) {
-                first_idx = 12- midi_out->nickname.length();
+                first_idx = 12 - midi_out->nickname.length();
             }
             if (line < first_idx)
                 printf("   |");
             else
-                printf(" %c |", midi_out->nickname.c_str()[line-first_idx]);
+                printf(" %c |", midi_out->nickname.c_str()[line - first_idx]);
         }
         printf("\r\n");
     }
@@ -704,11 +681,11 @@ void rppicomidi::Midi2usbh::static_show(EmbeddedCli *, char *, void *)
         printf("---+");
     }
     printf("\r\n");
-    for (auto& midi_in : instance().midi_in_port_list) {
+    for (auto &midi_in : instance().midi_in_port_list) {
         printf("%-12s|", midi_in->nickname.c_str());
-        for (auto& midi_out : instance().midi_out_port_list) {
+        for (auto &midi_out : instance().midi_out_port_list) {
             char connection_mark = ' ';
-            for (auto& sends_to : midi_in->sends_data_to_list) {
+            for (auto &sends_to : midi_in->sends_data_to_list) {
                 if (sends_to == midi_out) {
                     connection_mark = 'x';
                 }
@@ -733,26 +710,26 @@ void rppicomidi::Midi2usbh::static_rename(EmbeddedCli *cli, char *args, void *)
     auto old_nickname = std::string(embeddedCliGetToken(args, 1));
     auto new_nickname = std::string(embeddedCliGetToken(args, 2));
     // make sure the new nickname is not already in use
-    for (auto& midi_in : instance().midi_in_port_list) {
+    for (auto &midi_in : instance().midi_in_port_list) {
         if (midi_in->nickname == new_nickname) {
             printf("New Nickname %s already in use\r\n", new_nickname.c_str());
             return;
         }
     }
-    for (auto& midi_out : instance().midi_out_port_list) {
+    for (auto &midi_out : instance().midi_out_port_list) {
         if (midi_out->nickname == new_nickname) {
             printf("New Nickname %s already in use\r\n", new_nickname.c_str());
             return;
         }
     }
-    for (auto& midi_in : instance().midi_in_port_list) {
+    for (auto &midi_in : instance().midi_in_port_list) {
         if (midi_in->nickname == old_nickname) {
             midi_in->nickname = new_nickname;
             printf("FROM Nickname %s set to %s\r\n", old_nickname.c_str(), new_nickname.c_str());
             return;
         }
     }
-    for (auto& midi_out : instance().midi_out_port_list) {
+    for (auto &midi_out : instance().midi_out_port_list) {
         if (midi_out->nickname == old_nickname) {
             midi_out->nickname = new_nickname;
             printf("TO Nickname %s set to %s\r\n", old_nickname.c_str(), new_nickname.c_str());
