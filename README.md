@@ -1,12 +1,14 @@
 # midi2usbhub
-Use a Raspberry Pi Pico to interconnect MIDI devices via a USB hub
+Use a Raspberry Pi Pico to interconnect MIDI devices via a USB hub or old school MIDI.
 
 This project uses a Pico board, a micro USB to USB A adapter, and a powered USB hub
 to run software that routes MIDI data among all the devices connected to the hub. You
 configure the routing with command line interpreter commands through a serial port
 terminal. The software uses some of the Pico board's program flash for a file system
 to store configurations in presets. You can back up any or all of your presets to a
-USB Flash drive connected to the USB hub. Presets are stored in JSON format.
+USB Flash drive connected to the USB hub. Presets are stored in JSON format. There
+is a UART DIN MIDI IN and a UART DIN MIDI OUT to, so you can connect to old schoold
+MIDI too.
 
 # Project Status
 Very early public release to help with USB MIDI host hub testing. Definitely not done.
@@ -84,10 +86,10 @@ The build should complete with no errors. The build output is in the build direc
 # Terms this document uses
 - **Connected MIDI Device**: a MIDI device connected to a USB hub port or to a serial
 port MIDI DIN connector.
-- **USB ID**: A pair of numbers the Attached MIDI Device reports to the
+- **USB ID**: A pair of numbers the Connected MIDI Device reports to the
 hub when it connects. They are supposed to be unique to a particular
 product.
-- **Routing Matrix**: The software that sends MIDI data to and from connected MIDI devices
+- **Routing Matrix**: The software that sends MIDI data to and from Connected MIDI Devices
 - **Terminal**: a MIDI data input to or output from the Routing Matrix.
 - **FROM terminal**: an input to the Routing Matrix. It will be a MIDI OUT signal from
 a Connected MIDI Device.
@@ -103,8 +105,8 @@ direction is the USB ID followed by either a "F" for a FROM data stream or
 "T" for a TO data stream, followed by the port number (1-16). For example,
 "Drumpads" above was renamed from "0000-0000-F1"
 - **Product Name**: a name that identifies the the attached MIDI
-device. The Attached MIDI Device sends it to the hub on connection; it is a more friendly
-name than USB ID, and is the easiest way to assocate the attached MIDI device
+device. The Connected MIDI Device sends it to the hub on connection; it is a more friendly
+name than USB ID, and is the easiest way to assocate the Connected MIDI Device
 with all the other info.
 
 # Command Line Commands
@@ -112,7 +114,7 @@ with all the other info.
 Show a list of all available commands and brief help text.
 
 ## list
-List all Attached MIDI Devices currently connected to the USB hub. For example:
+List all Connected MIDI Devices currently connected to the USB hub. For example:
 
 ```
 USB ID      Port  Direction Nickname    Product Name
