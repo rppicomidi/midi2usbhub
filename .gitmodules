@@ -4,3 +4,9 @@
 [submodule "ext_lib/embedded-cli"]
 	path = ext_lib/embedded-cli
 	url = https://github.com/funbiscuit/embedded-cli.git
+[submodule "ext_lib/parson"]
+	path = ext_lib/parson
+	url = https://github.com/kgabis/parson
+[submodule "ext_lib/littlefs-lib"]
+	path = ext_lib/littlefs-lib
+	url = https://github.com/rppicomidi/littlefs-lib

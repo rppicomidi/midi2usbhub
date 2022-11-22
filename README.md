@@ -7,7 +7,7 @@ configure the routing with command line interpreter commands through a serial po
 terminal. The software uses some of the Pico board's program flash for a file system
 to store configurations in presets. You can back up any or all of your presets to a
 USB Flash drive connected to the USB hub. Presets are stored in JSON format. There
-is a UART DIN MIDI IN and a UART DIN MIDI OUT to, so you can connect to old schoold
+is a UART DIN MIDI IN and a UART DIN MIDI OUT, so you can connect to old school
 MIDI too.
 
 # Project Status
@@ -141,7 +141,7 @@ to the TO terminal of a particular device, then the streams are merged.
 Break a connection previously made using the `connect` command.
 
 ## reset
-Disconnect all routings. 
+Disconnect all routings.
 
 ## show
 Show a connection matrix of all MIDI devices connected to the hub. A blank box means "not

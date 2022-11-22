@@ -14,6 +14,7 @@ set(EMBEDDED_CLI_PATH ${CMAKE_CURRENT_LIST_DIR}/ext_lib/embedded-cli/lib/)
 add_executable(${target_proj}
     midi2usbhub.cpp
     ${EMBEDDED_CLI_PATH}/src/embedded_cli.c
+    ${CMAKE_CURRENT_LIST_DIR}/ext_lib/parson/parson.c
 )
 
 pico_enable_stdio_uart(${target_proj} 1)
@@ -21,6 +22,7 @@ pico_enable_stdio_uart(${target_proj} 1)
 target_include_directories(${target_proj} PRIVATE
  ${CMAKE_CURRENT_LIST_DIR}
  ${EMBEDDED_CLI_PATH}/include
+ ${CMAKE_CURRENT_LIST_DIR}/ext_lib/parson
 )
 
 target_link_options(${target_proj} PRIVATE -Xlinker --print-memory-usage)
