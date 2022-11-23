@@ -28,6 +28,7 @@
  */
 #include "preset_manager.h"
 #include "midi2usbhub.h"
+#include "diskio.h"
 rppicomidi::Preset_manager::Preset_manager()
 {
     // Make sure the flash filesystem is working
@@ -61,6 +62,7 @@ rppicomidi::Preset_manager::Preset_manager()
     if (pico_unmount() != 0) {
         printf("Failed to unmount the flash file system\r\n");
     }
+    msc_fat_init();
 }
 
 void rppicomidi::Preset_manager::init_cli(EmbeddedCli* cli)
@@ -113,6 +115,34 @@ void rppicomidi::Preset_manager::init_cli(EmbeddedCli* cli)
         true,
         this,
         static_save_current_preset
+    }));
+    assert(embeddedCliAddBinding(cli, {
+        "f-cd",
+        "change current directory on the USB flash drive. usage: f-cd <path>",
+        true,
+        this,
+        static_fatfs_cd
+    }));
+    assert(embeddedCliAddBinding(cli, {
+        "f-chdrive",
+        "change current drive number for the USB flash drive. usage: f-chdrive <drive number 0-3>",
+        true,
+        this,
+        static_fatfs_chdrive
+    }));
+    assert(embeddedCliAddBinding(cli, {
+        "f-ls",
+        "list contents of the current directory on the current USB flash drive. usage: f-ls [path]",
+        false,
+        this,
+        static_fatfs_ls
+    }));
+    assert(embeddedCliAddBinding(cli, {
+        "f-pwd",
+        "print the current directory path of the current USB flash drive. usage: f-pwd",
+        false,
+        this,
+        static_fatfs_pwd
     }));
 }
 
@@ -474,4 +504,216 @@ void rppicomidi::Preset_manager::static_load_preset(EmbeddedCli* cli, char* args
     else {
         printf("Failed to load preset %s\r\n", embeddedCliGetToken(args, 1));
     }
+}
+
+
+void rppicomidi::Preset_manager::print_fat_date(WORD wdate)
+{
+    uint16_t year = 1980 + ((wdate >> 9) & 0x7f);
+    uint16_t month = (wdate >> 5) & 0xf;
+    uint16_t day = wdate & 0x1f;
+    printf("%02u/%02u/%04u\t", month, day, year);
+}
+
+void rppicomidi::Preset_manager::print_fat_time(WORD wtime)
+{
+    uint8_t hour = ((wtime >> 11) & 0x1f);
+    uint8_t min = ((wtime >> 5) & 0x3F);
+    uint8_t sec = ((wtime &0x1f)*2);
+    printf("%02u:%02u:%02u\t", hour, min, sec);
+}
+
+FRESULT rppicomidi::Preset_manager::scan_files(const char* path)
+{
+    FRESULT res;
+    DIR dir;
+    static FILINFO fno;
+
+    res = f_opendir(&dir, path);                       /* Open the directory */
+    if (res == FR_OK) {
+        for (;;) {
+            res = f_readdir(&dir, &fno);                   /* Read a directory item */
+            if (res != FR_OK || fno.fname[0] == 0) break;  /* Break on error or end of dir */
+            printf("%lu\t",fno.fsize);
+            print_fat_date(fno.fdate);
+            print_fat_time(fno.ftime);
+            printf("%s%c\r\n",fno.fname, (fno.fattrib & AM_DIR) ? '/' : ' ');
+        }
+        f_closedir(&dir);
+    }
+
+    return res;
+}
+
+void rppicomidi::Preset_manager::static_fatfs_ls(EmbeddedCli *cli, char *args, void *context)
+{
+    (void)cli;
+    (void)args;
+    (void)context;
+    const char* path = ".";
+    uint16_t argc = embeddedCliGetTokenCount(args);
+    if (argc == 1) {
+        path = embeddedCliGetToken(args, 1);
+    }
+    else if (argc > 1) {
+        printf("usage: fatls [path]\r\n");
+    }
+    FRESULT res = instance().scan_files(path);
+    if (res != FR_OK) {
+        printf("Error %u listing files on drive\r\n", res);
+    }
+}
+
+#if 0
+void rppicomidi::Preset_manager::static_fatfs_backup(EmbeddedCli *cli, char *args, void *)
+{
+    FRESULT res = instance().backup_all_presets();
+    if (res != FR_OK) {
+        printf("Error %u backing up files on drive\r\n", res);
+    }
+}
+
+void rppicomidi::Preset_manager::static_fatfs_restore(EmbeddedCli* cli, char* args, void*)
+{
+    (void)cli;
+    uint16_t argc = embeddedCliGetTokenCount(args);
+    FRESULT res;
+    char path[256];
+    if (argc == 1) {
+        strncpy(path, embeddedCliGetToken(args, 1), sizeof(path)-1);
+        res = Preset_manager::instance().restore_presets(path);
+    }
+    else {
+        printf("usage: fatcd <new path>\r\n");
+        return;
+    }
+    if (res != FR_OK) {
+        printf("error %u restoring presets from %s\r\n", res, path);
+    }
+}
+#endif
+
+void rppicomidi::Preset_manager::static_fatfs_cd(EmbeddedCli* cli, char* args, void* context)
+{
+    (void)cli;
+    (void)context;
+    uint16_t argc = embeddedCliGetTokenCount(args);
+    FRESULT res;
+    char temp_cwd[256] = {'/', '\0'};
+    if (argc == 0) {
+        res = f_chdir(temp_cwd);
+    }
+    else if (argc == 1) {
+        strncpy(temp_cwd, embeddedCliGetToken(args, 1), sizeof(temp_cwd)-1);
+        temp_cwd[sizeof(temp_cwd)-1] = '\0';
+        res = f_chdir(temp_cwd);
+    }
+    else {
+        printf("usage: fatcd <new path>\r\n");
+        return;
+    }
+    if (res != FR_OK) {
+        printf("error %u setting cwd to %s\r\n", res, temp_cwd);
+    }
+    res = f_getcwd(temp_cwd, sizeof(temp_cwd));
+    if (res == FR_OK)
+        printf("cwd=\"%s\"\r\n", temp_cwd);
+    else
+        printf("error %u getting cwd\r\n", res);
+}
+
+void rppicomidi::Preset_manager::static_fatfs_chdrive(EmbeddedCli *cli, char *args, void *)
+{
+    (void)cli;
+    uint16_t argc = embeddedCliGetTokenCount(args);
+    FRESULT res;
+    char dstr[] = "0:";
+    if (argc != 1) {
+        printf("usage chdrive drive_number(0-3)");
+    }
+    else {
+        int drive = atoi(embeddedCliGetToken(args, 1));
+        if (drive >=0 && drive <= 3) {
+            dstr[0] += drive;
+            res = f_chdrive(dstr);
+            if (res != FR_OK) {
+                printf("error %u setting drive to %d\r\n", res, drive);
+            }
+        }
+        else {
+            printf("usage chdrive drive_number(0-3)");
+        }
+    }
+}
+
+void rppicomidi::Preset_manager::static_fatfs_pwd(EmbeddedCli *, char *, void *)
+{
+    char cwd[256];
+    FRESULT res = f_getcwd(cwd, sizeof(cwd));
+    if (res != FR_OK) {
+        printf("error %u reading the current working directory\r\n", res);
+    }
+    else {
+        printf("cwd=%s\r\n", cwd);
+    }
+}
+//-------------MSC/FATFS IMPLEMENTATION -------------//
+static scsi_inquiry_resp_t inquiry_resp;
+static FATFS fatfs[FF_VOLUMES];
+static_assert(FF_VOLUMES == CFG_TUH_DEVICE_MAX);
+
+bool inquiry_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw)
+{
+    if (csw->status != 0) {
+        printf("Inquiry failed\r\n");
+        return false;
+    }
+
+    // Print out Vendor ID, Product ID and Rev
+    printf("%.8s %.16s rev %.4s\r\n", inquiry_resp.vendor_id, inquiry_resp.product_id, inquiry_resp.product_rev);
+
+    // Get capacity of device
+    uint32_t const block_count = tuh_msc_get_block_count(dev_addr, cbw->lun);
+    uint32_t const block_size = tuh_msc_get_block_size(dev_addr, cbw->lun);
+
+    printf("Disk Size: %lu MB\r\n", block_count / ((1024*1024)/block_size));
+    printf("Block Count = %lu, Block Size: %lu\r\n", block_count, block_size);
+
+    return true;
+}
+
+void tuh_msc_mount_cb(uint8_t dev_addr)
+{
+    uint8_t pdrv = mmc_map_next_pdrv(dev_addr);
+
+    assert(pdrv < FF_VOLUMES);
+    msc_fat_plug_in(pdrv);
+    uint8_t const lun = 0;
+    tuh_msc_inquiry(dev_addr, lun, &inquiry_resp, inquiry_complete_cb);
+    char path[3] = "0:";
+    path[0] += pdrv;
+    if ( f_mount(&fatfs[pdrv],path, 0) != FR_OK ) {
+        printf("mount failed\r\n");
+        return;
+        if (f_chdrive(path) != FR_OK) {
+            printf("f_chdrive(%s) failed\r\n", path);
+        }
+    }
+    printf("Mass Storage drive %u is mounted\r\n", pdrv);
+}
+
+void tuh_msc_umount_cb(uint8_t dev_addr)
+{
+    uint8_t pdrv = mmc_unmap_pdrv(dev_addr);
+    char path[3] = "0:";
+    path[0] += pdrv;
+
+    f_mount(NULL, path, 0); // unmount disk
+    msc_fat_unplug(pdrv);
+    printf("Mass Storage drive %u is unmounted\r\n", pdrv);
+}
+
+void main_loop_task()
+{
+    rppicomidi::Midi2usbhub::instance().task();
 }

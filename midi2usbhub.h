@@ -122,6 +122,7 @@ namespace rppicomidi
         void serialize(std::string &serialized_settings);
         bool deserialize(std::string &serialized_settings);
 
+        void task();
     private:
         Midi2usbhub();
         static void langid_cb(tuh_xfer_t *xfer);

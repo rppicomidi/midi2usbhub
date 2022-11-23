@@ -36,7 +36,7 @@
 #include "midi_uart_lib.h"
 #include "bsp/board.h"
 #include "preset_manager.h"
-
+#include "diskio.h"
 void rppicomidi::Midi2usbhub::serialize(std::string &serialized_string)
 {
     JSON_Value *root_value = json_value_init_object();
@@ -298,7 +298,7 @@ rppicomidi::Midi2usbhub::Midi2usbhub()
         .rxBufferSize = 64,
         .cmdBufferSize = 64,
         .historyBufferSize = 128,
-        .maxBindingCount = 15,
+        .maxBindingCount = 18,
         .cliBuffer = NULL,
         .cliBufferSize = 0,
         .enableAutoComplete = true,
@@ -399,6 +399,20 @@ static void print_utf16(uint16_t *temp_buf, size_t buf_len) {
 }
 #endif
 
+void rppicomidi::Midi2usbhub::task()
+{
+    tuh_task();
+
+    blink_led();
+
+    poll_midi_uart_rx();
+    flush_usb_tx();
+    poll_usb_rx();
+    midi_uart_drain_tx_buffer(midi_uart_instance);
+
+    cli_task();
+}
+
 // Main loop
 int main()
 {
@@ -406,16 +420,7 @@ int main()
 
     while (1)
     {
-        tuh_task();
-
-        instance.blink_led();
-
-        instance.poll_midi_uart_rx();
-        instance.flush_usb_tx();
-        instance.poll_usb_rx();
-        midi_uart_drain_tx_buffer(instance.midi_uart_instance);
-
-        instance.cli_task();
+        instance.task();
     }
 }
 
@@ -527,6 +532,10 @@ void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t 
 
 void rppicomidi::Midi2usbhub::tuh_mount_cb(uint8_t dev_addr)
 {
+    // Don't need to fetch the product string if this is notification for MSC drive
+    if (msc_fat_is_plugged_in(dev_addr-1))
+        return;
+
     tuh_vid_pid_get(dev_addr, &attached_devices[dev_addr].vid, &attached_devices[dev_addr].pid);
 
     tuh_descriptor_get_string(dev_addr, 0, 0, dev_string_buffer, sizeof(dev_string_buffer), langid_cb, (uintptr_t)(attached_devices + dev_addr));

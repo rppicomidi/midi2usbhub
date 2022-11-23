@@ -30,6 +30,7 @@
 #include <string>
 #include "pico_hal.h"
 #include "embedded_cli.h"
+#include "ff.h"
 namespace rppicomidi
 {
 class Preset_manager
@@ -114,6 +115,9 @@ private:
      */
     int delete_file(const char* filename, bool mount=true);
 
+    void print_fat_date(WORD wdate);
+    void print_fat_time(WORD wtime);
+    FRESULT scan_files(const char* path);
     static void static_file_system_format(EmbeddedCli*, char*, void*);
     static void static_file_system_status(EmbeddedCli*, char*, void*);
     static void static_list_files(EmbeddedCli* cli, char* args, void* context);
@@ -121,8 +125,15 @@ private:
     static void static_delete_file(EmbeddedCli* cli, char* args, void*);
     static void static_save_current_preset(EmbeddedCli* cli, char* args, void*);
     static void static_load_preset(EmbeddedCli* cli, char* args, void*);
+    static void static_fatfs_ls(EmbeddedCli *cli, char *args, void *context);
+    static void static_fatfs_cd(EmbeddedCli* cli, char* args, void* context);
+    static void static_fatfs_chdrive(EmbeddedCli *cli, char *args, void *);
+    static void static_fatfs_pwd(EmbeddedCli *, char *, void *);
+    static void static_fatfs_backup(EmbeddedCli *cli, char *args, void *context);
+    static void static_fatfs_restore(EmbeddedCli* cli, char* args, void*);
+
     std::string current_preset_name;
-    //static constexpr const char* preset_dir_name = "/rppicomidi-midi2usbhub";
+    static constexpr const char* preset_dir_name = "/rppicomidi-midi2usbhub";
     static constexpr const char* current_preset_filename = "current-preset";
 };
 }

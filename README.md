@@ -53,17 +53,17 @@ first. I use a picoprobe for debugging, so I have openocd running in a terminal 
 I use minicom for the serial port terminal (make sure your linux account is in the dialup
 group).
 
-## Using the forked tinyusb library
+## Using a tinyusb library that supports USB MIDI Host
 The Pico SDK uses the main repository for tinyusb as a git submodule. Until the USB Host driver for MIDI is
 incorporated in the main repository for tinyusb, you will need to use the latest development version in pull
 request 1627 forked version. This is how I do it.
 
 1. If you have not already done so, follow the instructions for installing the Raspberry Pi Pico SDK in Chapter 2 of the 
 [Getting started with Raspberry Pi Pico](https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf)
-document.
+document. In particular, make sure `PICO_SDK_PATH` is set to the directory where you installed the pico-sdk.
 2. Set the working directory to the tinyusb library
 ```
-cd [some directory where you installed the pico SDK]/lib/tinyusb
+cd ${PICO_SDK_PATH}/lib/tinyusb
 ```
 3. Get the pull request midihost branch
 ```
@@ -80,14 +80,24 @@ Clone the midiusb2hub project to a directory at the same level as the pico-sdk d
 cd [one directory above the pico-sdk directory]
 git clone --recurse-submodules https://github.com/rppicomidi/midi2usbhub.git
 ```
+## Patch the tinyusb library
+As of this writing, issue 1721 exists in the midihost pull request. You need to patch this issue or
+you will have problems with large MIDI transfers or with using a USB Flash drive. The patch
+disables double-buffered transfers in Host mode for all USB endpoints except the control endpoint.
+This assumes you installed your code in the directory `${PICO_MIDI_PROJECTS}/midi2usbhub`
+```
+cd ${PICO_SDK_PATH}/lib/tinyusb
+git apply ${PICO_MIDI_PROJECTS}/midi2usbhub/patches/0001-Fix-RP2040-Issue-1721.patch
+```
+
 ## Command Line Build (skip if you want to use Visual Studio Code)
 
 Enter this series of commands (assumes you installed the pico-sdk
-and the midid2usbhub project in the $HOME/foo directory)
+and the midid2usbhub project in the ${PICO_MIDI_PROJECTS} directory)
 
 ```
-export PICO_SDK_PATH=$HOME/foo/pico-sdk/
-cd $HOME/foo/midi2usbhub
+export PICO_SDK_PATH=${PICO_MIDI_PROJECTS}/pico-sdk/
+cd ${PICO_MIDI_PROJECTS}/midi2usbhub
 mkdir build
 cd build
 cmake ..
@@ -205,10 +215,25 @@ Reformat the LittleFs file system in the Pico's program memory. It delete all pr
 ## fsstat
 Print information about the LittleFs file system
 
-## ls
-List all files in the LittleFs file system
+## ls [path]
+List all files in the LittleFs file system. If you specify a `path`, then list the contents
+of the `path` directory. For now, the only directory path is `/`.
 
 ## rm \<filename\>
 Deletes the file with name \<filename\> in the LitteFs file system
 
+## f-cd [path]
+Change current directory of the current USB flash drive to `path`. If `path` is not specified,
+equivalent to `f-cd /` (i.e., set to the drive root directory).
 
+## f-chdrive \<drive number 0-3\>
+Change current drive number for the USB flash drive. Will only need to do this if you have
+more than one flash drive plugged in. When you plug in a drive, the code automatically
+sets the drive number to the latest drive.
+
+## f-ls [path]
+List contents of the current directory on the current USB flash drive if `path` is not
+specified. Otherwise, list the contents of the specified path.
+
+## f-pwd
+Print the current directory path of the current USB flash drive.
