@@ -74,6 +74,13 @@ void rppicomidi::Preset_manager::init_cli(EmbeddedCli* cli)
         static_file_system_status
     }));
     assert(embeddedCliAddBinding(cli, {
+        "load",
+        "load the current preset from the preset file name. usage: load <preset name>",
+        true,
+        this,
+        static_load_preset
+    }));
+    assert(embeddedCliAddBinding(cli, {
         "ls",
         "list all settings files",
         true,
@@ -96,13 +103,13 @@ void rppicomidi::Preset_manager::init_cli(EmbeddedCli* cli)
     }));
 }
 
-void rppicomidi::Preset_manager::save_current_preset(std::string preset_name)
+bool rppicomidi::Preset_manager::save_current_preset(std::string preset_name)
 {
     // mount the lfs
     int error_code = pico_mount(false);
     if (error_code != 0) {
         printf("Error %s mounting the flash file system\r\n", pico_errmsg(error_code));
-        return;
+        return false;
     }
 
     // TODO serialize the preset and save it
@@ -116,7 +123,7 @@ void rppicomidi::Preset_manager::save_current_preset(std::string preset_name)
     if (error_code != LFS_ERR_OK) {
         pico_unmount();
         printf("error %s opening file %s\r\n", pico_errmsg(error_code), filename.c_str());
-        return;
+        return false;
     }
     lfs_ssize_t size = lfs_file_write(&file, ser.c_str(), ser.length());
     error_code = lfs_file_close(&file);
@@ -126,29 +133,48 @@ void rppicomidi::Preset_manager::save_current_preset(std::string preset_name)
             printf("error %s closing to file %s\r\n", pico_errmsg(error_code), filename.c_str());
         }
         pico_unmount();
-        return;
+        return false;
     }
     // preset data is written. Now need to update the current preset file
-    filename = std::string(current_preset_filename);
-    error_code = lfs_file_open(&file, filename.c_str(),
+    bool result = update_current_preset(preset_name, false);
+    pico_unmount();
+    return result;
+}
+
+bool rppicomidi::Preset_manager::update_current_preset(std::string& preset_name, bool mount)
+{
+    if (mount) {
+        int err = pico_mount(false);
+        if (err != 0) {
+            printf("Error %s mounting the flash file system\r\n", pico_errmsg(err));
+            return false;
+        }
+    }
+    lfs_file_t file;
+    int error_code = lfs_file_open(&file, current_preset_filename,
                                 LFS_O_WRONLY | LFS_O_TRUNC | LFS_O_CREAT); // open for write, truncate if it exists and create if it doesn't
     if (error_code != LFS_ERR_OK) {
-        pico_unmount();
-        printf("error %s opening file %s\r\n", pico_errmsg(error_code), filename.c_str());
-        return;
+        if (mount)
+            pico_unmount();
+        printf("error %s opening file %s\r\n", pico_errmsg(error_code), current_preset_filename);
+        return false;
     }
-    size = lfs_file_write(&file, preset_name.c_str(), preset_name.length());
+    auto size = lfs_file_write(&file, preset_name.c_str(), preset_name.length());
     error_code = lfs_file_close(&file);
+    bool result = true;
     if (size < 0 || size != static_cast<lfs_ssize_t>(preset_name.length())) {
-        printf("error %s writing preset name to file %s\r\n", pico_errmsg(size), filename.c_str());
+        printf("error %s writing preset name to file %s\r\n", pico_errmsg(size), current_preset_filename);
         if (error_code != LFS_ERR_OK) {
-            printf("error %s closing to file %s\r\n", pico_errmsg(error_code), filename.c_str());
+            printf("error %s closing to file %s\r\n", pico_errmsg(error_code), current_preset_filename);
         }
-        pico_unmount();
-        return;
+        result = false;
     }
-    pico_unmount();
-    current_preset_name = preset_name;
+    else { 
+        current_preset_name = preset_name;
+    }
+    if (mount)
+        pico_unmount();
+    return result;
 }
 
 int rppicomidi::Preset_manager::lfs_ls(const char *path)
@@ -271,7 +297,7 @@ void rppicomidi::Preset_manager::static_delete_file(EmbeddedCli* cli, char* args
 {
     (void)cli;
     if (embeddedCliGetTokenCount(args) != 1) {
-        printf("usage: rm <filename>");
+        printf("usage: rm <filename>\r\n");
         return;
     }
     const char* fn=embeddedCliGetToken(args, 1);
@@ -300,7 +326,7 @@ void rppicomidi::Preset_manager::static_print_file(EmbeddedCli* cli, char* args,
     (void)cli;
     auto me = reinterpret_cast<Preset_manager*>(context);
     if (embeddedCliGetTokenCount(args) != 1) {
-        printf("usage: cat <filename>");
+        printf("usage: cat <filename>\r\n");
         return;
     }
     const char* fn=embeddedCliGetToken(args, 1);
@@ -386,8 +412,49 @@ void rppicomidi::Preset_manager::static_save_current_preset(EmbeddedCli* cli, ch
 {
     (void)cli;
     if (embeddedCliGetTokenCount(args) != 1) {
-        printf("usage: cat <filename>");
+        printf("usage: save <filename>\r\n");
         return;
     }
-    instance().save_current_preset(std::string(embeddedCliGetToken(args, 1)));
+    if (instance().save_current_preset(std::string(embeddedCliGetToken(args, 1)))) {
+        printf("Saved preset %s as current preset\r\n",embeddedCliGetToken(args, 1));
+    }
+}
+
+bool rppicomidi::Preset_manager::load_preset(std::string preset_name)
+{
+    char* raw_preset_string;
+    int error_code = load_settings_string(preset_name.c_str(), &raw_preset_string);
+    bool result = false;
+    if (error_code > 0) {
+        std::string settings = std::string(raw_preset_string);
+        delete[] raw_preset_string;
+        if (Midi2usbhub::instance().deserialize(settings)) {
+            if (update_current_preset(preset_name)) {
+                printf("load preset %s successful\r\n", preset_name.c_str());
+                result = true;
+            }
+        }
+        else {
+            printf("error deserilizating the preset\r\n");
+        }        
+    }
+    else {
+        printf("error %s loading settings %s\r\n", pico_errmsg(error_code), preset_name.c_str());
+    }
+    return result;
+}
+
+void rppicomidi::Preset_manager::static_load_preset(EmbeddedCli* cli, char* args, void*)
+{
+    (void)cli;
+    if (embeddedCliGetTokenCount(args) != 1) {
+        printf("usage: load <filename>\r\n");
+        return;
+    }
+    if (instance().load_preset(std::string(embeddedCliGetToken(args, 1)))) {
+        printf("Loaded preset %s as current preset\r\n",embeddedCliGetToken(args, 1));
+    }
+    else {
+        printf("Failed to load preset %s\r\n", embeddedCliGetToken(args, 1));
+    }
 }

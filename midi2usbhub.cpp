@@ -54,7 +54,7 @@ void rppicomidi::Midi2usbhub::serialize(std::string &serialized_string)
     for (auto &midi_out : midi_out_port_list)
     {
         std::string default_nickname;
-        make_default_nickname(default_nickname, attached_devices[midi_out->devaddr].vid, attached_devices[midi_out->devaddr].pid, midi_out->cable, true);
+        make_default_nickname(default_nickname, attached_devices[midi_out->devaddr].vid, attached_devices[midi_out->devaddr].pid, midi_out->cable, false);
         json_object_set_string(to_object, default_nickname.c_str(), midi_out->nickname.c_str());
     }
     json_object_set_value(root_object, "from", from_value);
@@ -78,6 +78,108 @@ void rppicomidi::Midi2usbhub::serialize(std::string &serialized_string)
     serialized_string = std::string(ser);
     json_free_serialized_string(ser);
     json_value_free(root_value);
+}
+
+bool rppicomidi::Midi2usbhub::deserialize(std::string &serialized_string)
+{
+    JSON_Value* root_value = json_parse_string(serialized_string.c_str());
+    if (root_value == nullptr) {
+        return false;
+    }
+    JSON_Object* root_object = json_value_get_object(root_value);
+    JSON_Value* midi_in_nicknames_value = json_object_get_value(root_object, "from");
+    if (midi_in_nicknames_value == nullptr) {
+        json_value_free(root_value);
+        return false;
+    }
+    JSON_Object* midi_in_nicknames_object = json_value_get_object(midi_in_nicknames_value);
+    if (midi_in_nicknames_object) {
+        // update the nicknames
+        for (auto& midi_in: midi_in_port_list) {
+            std::string def_nickname;
+            auto info = &attached_devices[midi_in->devaddr];
+            make_default_nickname(def_nickname, info->vid, info->pid, midi_in->cable, true);
+            const char* nickname = json_object_get_string(midi_in_nicknames_object, def_nickname.c_str());
+            if (nickname) {
+                midi_in->nickname = std::string(nickname);
+            }
+        }
+    }
+    else {
+        json_value_free(root_value);
+        return false;
+    }
+    JSON_Value* midi_out_nicknames_value = json_object_get_value(root_object, "to");
+    if (midi_out_nicknames_value == nullptr) {
+        json_value_free(root_value);
+        return false;
+    }
+    JSON_Object* midi_out_nicknames_object = json_value_get_object(midi_out_nicknames_value);
+    if (midi_out_nicknames_object) {
+        // update the nicknames
+        for (auto& midi_out: midi_out_port_list) {
+            std::string def_nickname;
+            auto info = &attached_devices[midi_out->devaddr];
+            make_default_nickname(def_nickname, info->vid, info->pid, midi_out->cable, false);
+            const char* nickname = json_object_get_string(midi_out_nicknames_object, def_nickname.c_str());
+            if (nickname) {
+                midi_out->nickname = std::string(nickname);
+            }
+            else {
+                printf("could not find nickname %s\r\n", def_nickname.c_str());
+            }
+        }
+    }
+    else {
+        json_value_free(root_value);
+        return false;
+    }
+    JSON_Value* routing_value = json_object_get_value(root_object, "routing");
+    if (routing_value == nullptr) {
+        json_value_free(root_value);
+        return false;
+    }
+    JSON_Object* routing_object = json_value_get_object(routing_value);
+    if (routing_object) {
+        for (auto& midi_in: midi_in_port_list) {
+            JSON_Array* routes = json_object_get_array(routing_object, midi_in->nickname.c_str());
+            if (routes) {
+                midi_in->sends_data_to_list.clear();
+                size_t count = json_array_get_count(routes);
+                for (size_t idx = 0; idx < count; idx++) {
+                    const char* to_nickname = json_array_get_string(routes, idx);
+                    if (to_nickname) {
+                        std::string nickname = std::string(to_nickname);
+                        // Find to_nickname in the midi_out_port_list
+                        for (auto& midi_out: midi_out_port_list ) {
+                            if (nickname == midi_out->nickname) {
+                                // it's connected, so route it
+                                midi_in->sends_data_to_list.push_back(midi_out);
+                                break;
+                            }
+                        }
+                    }
+                    else {
+                        // poorly formatted JSON
+                        json_value_free(root_value);
+                        return false;
+                    }
+                }
+            }
+            else {
+                // poorly formatted JSON
+                json_value_free(root_value);
+                return false;
+            }
+        }
+    }
+    else {
+        // poorly formatted JSON
+        json_value_free(root_value);
+        return false;
+    }
+    json_value_free(root_value);
+    return true;
 }
 
 void rppicomidi::Midi2usbhub::blink_led()

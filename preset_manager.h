@@ -57,8 +57,25 @@ public:
      * change the current preset to preset name
      * 
      * @param preset_name the new preset name
+     * @return true if successful, false otherwise
      */
-    void save_current_preset(std::string preset_name);
+    bool save_current_preset(std::string preset_name);
+
+    /**
+     * @brief load the preset file named preset_name and update the
+     * current settings as much as possible based on what devices
+     * are currently plugged in, then change the current preset
+     * to preset_name
+     * 
+     * @param preset_name the name of the preset to load
+     */
+    bool load_preset(std::string preset_name);
+
+    /**
+     * @brief Get the current preset name
+     * 
+     * @param preset_name is set to the current preset name
+     */
     void get_current_preset_name(std::string& preset_name) { preset_name = current_preset_name; }
 private:
     Preset_manager();
@@ -78,6 +95,7 @@ private:
      */
     int load_settings_string(const char* fn, char** raw_settings_ptr, bool mount=true);
 
+    bool update_current_preset(std::string& preset_name, bool mount = true);
     /**
      * @brief See https://github.com/littlefs-project/littlefs/issues/2
      * 
@@ -102,6 +120,7 @@ private:
     static void static_print_file(EmbeddedCli* cli, char* args, void* context);
     static void static_delete_file(EmbeddedCli* cli, char* args, void*);
     static void static_save_current_preset(EmbeddedCli* cli, char* args, void*);
+    static void static_load_preset(EmbeddedCli* cli, char* args, void*);
     std::string current_preset_name;
     //static constexpr const char* preset_dir_name = "/rppicomidi-midi2usbhub";
     static constexpr const char* default_preset_name = "default";
