@@ -5,12 +5,20 @@ This project uses a Pico board, a micro USB to USB A adapter, and a powered USB 
 to run software that routes MIDI data among all the devices connected to the hub. You
 configure the routing with command line interpreter commands through a serial port
 terminal. The software uses some of the Pico board's program flash for a file system
-to store configurations in presets. You can back up any or all of your presets to a
-USB Flash drive connected to the USB hub. Presets are stored in JSON format. There
-is a UART DIN MIDI IN and a UART DIN MIDI OUT, so you can connect to old school
-MIDI too.
+to store configurations in presets. If you save your settings to a preset, then
+the midi2usbhub software will automatically reload the last saved preset on startup
+and when you plug a Connected MIDI Device to the hub. You can back up any or all of
+your presets to a USB Flash drive connected to the USB hub. Presets are stored in
+JSON format. There is a UART DIN MIDI IN and a UART DIN MIDI OUT, so you can connect
+to old school MIDI too. You can route the UART MIDI the same way your route USB MIDI.
 
 # Project Status
+22-Nov-2022
+You can now save and load setups using Pico program flash storage. The last preset
+save or loaded will be remembered on startup or when a device is plugged or unplugged.
+Expanded the command set to allow for LittleFs management. Still need to implement
+backup and restore.
+20-Nov-2022
 Very early public release to help with USB MIDI host hub testing. Definitely not done.
 May crash from time to time when you plug in a new device. I have not investigated that
 yet. Not easily repeatable. UART MIDI is also implemented.
@@ -23,9 +31,14 @@ yet. Not easily repeatable. UART MIDI is also implemented.
 - reset
 - show
 - help
+- save
+- load
+- format
+- fsstat
+- ls
+- rm
 
 ## TODO
-- local settings storage with LittleFs
 - backup and restore to flash drive
 
 ## Future Feature
@@ -185,4 +198,17 @@ flash drive.
 ## restore [\<preset name\>]
 Copy the specified preset from the USB flash drive directory `/rppicomidi-midi2usbhub/<preset name>` to the file system on Pico board's program flash. If no preset name is specified, then
 all presets from the USB flash drive directory `/rppicomidi-midi2usbhub` will be copied.
+
+## format
+Reformat the LittleFs file system in the Pico's program memory. It delete all presets.
+
+## fsstat
+Print information about the LittleFs file system
+
+## ls
+List all files in the LittleFs file system
+
+## rm \<filename\>
+Deletes the file with name \<filename\> in the LitteFs file system
+
 

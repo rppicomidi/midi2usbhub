@@ -123,7 +123,6 @@ private:
     static void static_load_preset(EmbeddedCli* cli, char* args, void*);
     std::string current_preset_name;
     //static constexpr const char* preset_dir_name = "/rppicomidi-midi2usbhub";
-    static constexpr const char* default_preset_name = "default";
     static constexpr const char* current_preset_filename = "current-preset";
 };
 }

@@ -477,6 +477,11 @@ void rppicomidi::Midi2usbhub::prod_str_cb(tuh_xfer_t *xfer)
                                                  midi_out->cable, false);
             }
         }
+        std::string current;
+        Preset_manager::instance().get_current_preset_name(current);
+        if (current.length() < 1 || !Preset_manager::instance().load_preset(current)) {
+            printf("current preset load failed.\r\n");
+        }
         devinfo->configured = true;
     }
 }
@@ -513,7 +518,6 @@ void rppicomidi::Midi2usbhub::tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep,
 
         midi_out_port_list.push_back(port);
     }
-    // TODO: update MIDI IN to MIDI OUT wiring based on stored settings for current preset
 }
 
 void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t num_cables_rx, uint16_t num_cables_tx)

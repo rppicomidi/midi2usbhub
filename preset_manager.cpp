@@ -45,6 +45,19 @@ rppicomidi::Preset_manager::Preset_manager()
     }
     printf("successfully mounted flash file system\r\n");
 
+    lfs_file_t file;
+    error_code = lfs_file_open(&file, current_preset_filename, LFS_O_RDONLY);
+    if (error_code == LFS_ERR_OK) {
+        char curr_preset[LFS_NAME_MAX+1];
+        lfs_ssize_t nread = lfs_file_read(&file, curr_preset, LFS_NAME_MAX);
+        if (nread > 0) {
+            curr_preset[nread] = '\0'; // just in case
+            current_preset_name = std::string(curr_preset);
+        }
+    }
+    else {
+        printf("Error %s opening file %s for reading\r\n", pico_errmsg(error_code), current_preset_filename);
+    }
     if (pico_unmount() != 0) {
         printf("Failed to unmount the flash file system\r\n");
     }
@@ -143,37 +156,41 @@ bool rppicomidi::Preset_manager::save_current_preset(std::string preset_name)
 
 bool rppicomidi::Preset_manager::update_current_preset(std::string& preset_name, bool mount)
 {
-    if (mount) {
-        int err = pico_mount(false);
-        if (err != 0) {
-            printf("Error %s mounting the flash file system\r\n", pico_errmsg(err));
+    bool result = true;
+
+    // only need to do stuff if the preset_name is not the current_preset_name
+    if (preset_name != current_preset_name) {
+        if (mount) {
+            int err = pico_mount(false);
+            if (err != 0) {
+                printf("Error %s mounting the flash file system\r\n", pico_errmsg(err));
+                return false;
+            }
+        }
+        lfs_file_t file;
+        int error_code = lfs_file_open(&file, current_preset_filename,
+                                    LFS_O_WRONLY | LFS_O_TRUNC | LFS_O_CREAT); // open for write, truncate if it exists and create if it doesn't
+        if (error_code != LFS_ERR_OK) {
+            if (mount)
+                pico_unmount();
+            printf("error %s opening file %s\r\n", pico_errmsg(error_code), current_preset_filename);
             return false;
         }
-    }
-    lfs_file_t file;
-    int error_code = lfs_file_open(&file, current_preset_filename,
-                                LFS_O_WRONLY | LFS_O_TRUNC | LFS_O_CREAT); // open for write, truncate if it exists and create if it doesn't
-    if (error_code != LFS_ERR_OK) {
+        auto size = lfs_file_write(&file, preset_name.c_str(), preset_name.length());
+        error_code = lfs_file_close(&file);
+        if (size < 0 || size != static_cast<lfs_ssize_t>(preset_name.length())) {
+            printf("error %s writing preset name to file %s\r\n", pico_errmsg(size), current_preset_filename);
+            if (error_code != LFS_ERR_OK) {
+                printf("error %s closing to file %s\r\n", pico_errmsg(error_code), current_preset_filename);
+            }
+            result = false;
+        }
+        else { 
+            current_preset_name = preset_name;
+        }
         if (mount)
             pico_unmount();
-        printf("error %s opening file %s\r\n", pico_errmsg(error_code), current_preset_filename);
-        return false;
     }
-    auto size = lfs_file_write(&file, preset_name.c_str(), preset_name.length());
-    error_code = lfs_file_close(&file);
-    bool result = true;
-    if (size < 0 || size != static_cast<lfs_ssize_t>(preset_name.length())) {
-        printf("error %s writing preset name to file %s\r\n", pico_errmsg(size), current_preset_filename);
-        if (error_code != LFS_ERR_OK) {
-            printf("error %s closing to file %s\r\n", pico_errmsg(error_code), current_preset_filename);
-        }
-        result = false;
-    }
-    else { 
-        current_preset_name = preset_name;
-    }
-    if (mount)
-        pico_unmount();
     return result;
 }
 
