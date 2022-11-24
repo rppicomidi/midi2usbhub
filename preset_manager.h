@@ -114,7 +114,9 @@ private:
      * @return int LFS_ERR_OK if successful, a negative error code if not
      */
     int delete_file(const char* filename, bool mount=true);
-
+    FRESULT backup_all_presets();
+    FRESULT backup_preset(const char* preset_name, bool mount=true);
+    FRESULT restore_preset(const char* preset_name);
     void print_fat_date(WORD wdate);
     void print_fat_time(WORD wtime);
     FRESULT scan_files(const char* path);
@@ -131,6 +133,9 @@ private:
     static void static_fatfs_pwd(EmbeddedCli *, char *, void *);
     static void static_fatfs_backup(EmbeddedCli *cli, char *args, void *context);
     static void static_fatfs_restore(EmbeddedCli* cli, char* args, void*);
+    static void static_set_date(EmbeddedCli *cli, char *args, void *context);
+    static void static_set_time(EmbeddedCli *cli, char *args, void *context);
+    static void static_get_fat_time(EmbeddedCli *cli, char *args, void *context);
 
     std::string current_preset_name;
     static constexpr const char* preset_dir_name = "/rppicomidi-midi2usbhub";

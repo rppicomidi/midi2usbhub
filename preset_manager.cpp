@@ -29,6 +29,7 @@
 #include "preset_manager.h"
 #include "midi2usbhub.h"
 #include "diskio.h"
+#include "rp2040_rtc.h"
 rppicomidi::Preset_manager::Preset_manager()
 {
     // Make sure the flash filesystem is working
@@ -117,6 +118,21 @@ void rppicomidi::Preset_manager::init_cli(EmbeddedCli* cli)
         static_save_current_preset
     }));
     assert(embeddedCliAddBinding(cli, {
+        "backup",
+        "backup the preset to USB drive, or all presets if none specified. usage: backup [preset name]",
+        true,
+        this,
+        static_fatfs_backup
+    }));
+    assert(embeddedCliAddBinding(cli, {
+        "restore",
+        "restore the preset from the USB drive. usage: restore <preset name>",
+        true,
+        this,
+        static_fatfs_restore
+    }));
+
+    assert(embeddedCliAddBinding(cli, {
         "f-cd",
         "change current directory on the USB flash drive. usage: f-cd <path>",
         true,
@@ -143,6 +159,27 @@ void rppicomidi::Preset_manager::init_cli(EmbeddedCli* cli)
         false,
         this,
         static_fatfs_pwd
+    }));
+    assert(embeddedCliAddBinding(cli, {
+            "set-date",
+            "change the date for file timestamps; usage set-date year(2022-9999) month(1-12) day(1-31)",
+            true,
+            NULL,
+            static_set_date
+    }));
+    assert(embeddedCliAddBinding(cli, {
+            "set-time",
+            "change the time of day for file timestamps; usage set-time hour(0-23) minute(0-59) second(0-59)",
+            true,
+            NULL,
+            static_set_time
+    }));
+    assert(embeddedCliAddBinding(cli, {
+            "get-datetime",
+            "print the current date and time",
+            false,
+            NULL,
+            static_get_fat_time
     }));
 }
 
@@ -545,11 +582,10 @@ FRESULT rppicomidi::Preset_manager::scan_files(const char* path)
     return res;
 }
 
-void rppicomidi::Preset_manager::static_fatfs_ls(EmbeddedCli *cli, char *args, void *context)
+void rppicomidi::Preset_manager::static_fatfs_ls(EmbeddedCli * cli, char *args, void *)
 {
     (void)cli;
     (void)args;
-    (void)context;
     const char* path = ".";
     uint16_t argc = embeddedCliGetTokenCount(args);
     if (argc == 1) {
@@ -564,13 +600,188 @@ void rppicomidi::Preset_manager::static_fatfs_ls(EmbeddedCli *cli, char *args, v
     }
 }
 
-#if 0
+FRESULT rppicomidi::Preset_manager::backup_preset(const char* preset_name, bool mount)
+{
+    int error_code = LFS_ERR_OK;
+    if (mount) {
+        error_code = pico_mount(false);
+        if (error_code != 0) {
+            printf("unexpected error %s mounting flash\r\n", pico_errmsg(error_code));
+            return FR_INT_ERR;
+        }
+    }
+    lfs_file_t file;
+    error_code = lfs_file_open(&file, preset_name, LFS_O_RDONLY);
+    if (error_code != LFS_ERR_OK) {
+        printf("error %s opening preset file %s\r\n", pico_errmsg(error_code), preset_name);
+        if (mount)
+            pico_unmount();
+        return FR_INT_ERR;
+    }
+    lfs_soff_t sz_src = lfs_file_size(&file);
+    if (sz_src < 0) {
+        printf("error %s determining preset file %s size\r\n", pico_errmsg(error_code), preset_name);
+        lfs_file_close(&file);
+        if (mount)
+            pico_unmount();
+        return FR_INT_ERR;
+    }
+    uint8_t buffer[sz_src];
+    lfs_ssize_t nread = lfs_file_read(&file, buffer, sz_src);
+    if (nread < 0) {
+        printf("error %s reading preset file %s\r\n", pico_errmsg(error_code), preset_name);
+        return FR_INT_ERR;
+    }
+    lfs_file_close(&file);
+    if (mount)
+        pico_unmount();
+    
+    DIR dir;
+    FRESULT res = f_opendir(&dir, preset_dir_name);
+    if (res == FR_NO_PATH) {
+        res = f_mkdir(preset_dir_name);
+        if (res != FR_OK) {
+            printf("error %d creating directory %s\r\n", res, preset_dir_name);
+            return res;
+        }
+        else {
+            res = f_opendir(&dir, preset_dir_name);
+            if (res != FR_OK) {
+                printf("error %d probing for directory %s\r\n", res, preset_dir_name);
+                return res;            
+            }
+        }
+    }
+    else if (res != FR_OK) {
+        printf("error %d probing for directory %s\r\n", res, preset_dir_name);
+        return res;
+    }
+    res = f_closedir(&dir);
+    if (res != FR_OK) {
+        printf("error %d closing directory %s\r\n", res, preset_dir_name);
+        return res;
+    }
+    std::string path = std::string(preset_dir_name) + "/" + std::string(preset_name);
+    FIL fil;
+    res = f_open(&fil, path.c_str(), FA_WRITE | FA_CREATE_ALWAYS);
+    if (res == FR_OK) {
+        UINT nwritten;
+        res = f_write(&fil, buffer, nread, &nwritten);
+        f_close(&fil);
+        if (res != FR_OK) {
+            printf("error %d writing file %s\r\n", res, path.c_str());
+        }
+        else if (nwritten != (UINT)nread) {
+            printf("error writing %s: nread=%ld nwritten=%u\r\n", path.c_str(), nread, nwritten);
+        }
+    }
+    return res;
+}
+
+FRESULT rppicomidi::Preset_manager::backup_all_presets()
+{
+    int error_code = pico_mount(false);
+    if (error_code != LFS_ERR_OK) {
+        printf("unexpected error %s mounting flash\r\n", pico_errmsg(error_code));
+        return FR_INT_ERR;
+    }
+    lfs_dir_t dir;
+    error_code = lfs_dir_open(&dir, "/");
+    if (error_code != LFS_ERR_OK) {
+        printf("unexpected error %s opening backup directory /\r\n", pico_errmsg(error_code));
+        pico_unmount();
+        return FR_INT_ERR;
+    }
+    struct lfs_info info;
+    while (true) {
+        lfs_ssize_t nread = lfs_dir_read(&dir, &info);
+        if (nread < 0) {
+            printf("errror %s reading preset root directory\r\n", pico_errmsg(nread));
+            return FR_INT_ERR;
+        }
+
+        if (nread == 0) {
+            break;
+        }
+        if (info.type == LFS_TYPE_REG) {
+            backup_preset(info.name, false);
+        }
+    }
+
+    error_code = lfs_dir_close(&dir);
+    if (error_code) {
+        return FR_INT_ERR;
+    }
+    return FR_OK;
+}
+
 void rppicomidi::Preset_manager::static_fatfs_backup(EmbeddedCli *cli, char *args, void *)
 {
-    FRESULT res = instance().backup_all_presets();
-    if (res != FR_OK) {
-        printf("Error %u backing up files on drive\r\n", res);
+    (void)cli;
+    uint16_t argc = embeddedCliGetTokenCount(args);
+    FRESULT res;
+    if (argc == 0) {
+        res = instance().backup_all_presets();
+        if (res != FR_OK) {
+            printf("Error %u backing up files on drive\r\n", res);
+        }
     }
+    else if (argc == 1) {
+        const char* preset_name = embeddedCliGetToken(args, 1);
+        res = instance().backup_preset(preset_name);
+        if (res != FR_OK) {
+            printf("error %d backing up preset %s\r\n", res, preset_name);
+        }
+    }
+    else {
+        printf("usage: backup <preset name>\r\n");
+    }
+}
+
+FRESULT rppicomidi::Preset_manager::restore_preset(const char* preset_name)
+{
+    FIL fil;
+    std::string path = std::string(preset_dir_name)+ "/" + std::string(preset_name);
+    FRESULT res = f_open(&fil,path.c_str(), FA_READ);
+    if (res != FR_OK) {
+        printf("error %d opening file %s\r\n", res, path.c_str());
+        return res;
+    }
+    size_t flen = f_size(&fil);
+    uint8_t buffer[flen];
+    UINT nread = 0;
+    res = f_read(&fil, buffer, flen, &nread);
+    if (res != FR_OK) {
+        printf("error %d reading file %s\r\n", res, path.c_str());
+        f_close(&fil);
+        return res;
+    }
+    f_close(&fil);
+    int error_code = pico_mount(false);
+    if (error_code != 0) {
+        printf("unexpected error %s mounting flash\r\n", pico_errmsg(error_code));
+        return FR_INT_ERR;
+    }
+    lfs_file_t file;
+    error_code = lfs_file_open(&file, preset_name, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC);
+    if (error_code != LFS_ERR_OK) {
+        printf("error %s opening preset file %s for write\r\n", pico_errmsg(error_code), preset_name);
+        pico_unmount();
+        return FR_INT_ERR;
+    }
+    lfs_ssize_t nwritten = lfs_file_write(&file, buffer, flen);
+    error_code = lfs_file_close(&file);
+    pico_unmount();
+    if (nwritten < 0) {
+        printf("error %s opening preset file %s for write\r\n", pico_errmsg(error_code), preset_name);
+    }
+    else if (nwritten != (lfs_ssize_t)flen) {
+        printf("File %s nwritten=%ld nread=%u\r\n", preset_name, nwritten, flen);
+    }
+    else {
+        printf("preset %s restored\r\n", preset_name);
+    }
+    return FR_OK;
 }
 
 void rppicomidi::Preset_manager::static_fatfs_restore(EmbeddedCli* cli, char* args, void*)
@@ -578,20 +789,17 @@ void rppicomidi::Preset_manager::static_fatfs_restore(EmbeddedCli* cli, char* ar
     (void)cli;
     uint16_t argc = embeddedCliGetTokenCount(args);
     FRESULT res;
-    char path[256];
     if (argc == 1) {
-        strncpy(path, embeddedCliGetToken(args, 1), sizeof(path)-1);
-        res = Preset_manager::instance().restore_presets(path);
+        res = Preset_manager::instance().restore_preset(embeddedCliGetToken(args, 1));
     }
     else {
-        printf("usage: fatcd <new path>\r\n");
+        printf("usage: restore <preset name>\r\n");
         return;
     }
     if (res != FR_OK) {
-        printf("error %u restoring presets from %s\r\n", res, path);
+        printf("error %u restoring preset from %s\r\n", res, embeddedCliGetToken(args, 1));
     }
 }
-#endif
 
 void rppicomidi::Preset_manager::static_fatfs_cd(EmbeddedCli* cli, char* args, void* context)
 {
@@ -657,6 +865,54 @@ void rppicomidi::Preset_manager::static_fatfs_pwd(EmbeddedCli *, char *, void *)
         printf("cwd=%s\r\n", cwd);
     }
 }
+
+void rppicomidi::Preset_manager::static_set_date(EmbeddedCli *cli, char *args, void *context)
+{
+    (void)cli;
+    (void)context;
+    bool usage_ok = false;
+    if (embeddedCliGetTokenCount(args) == 3) {
+        int16_t year = atoi(embeddedCliGetToken(args, 1));
+        int8_t month = atoi(embeddedCliGetToken(args, 2));
+        int8_t day = atoi(embeddedCliGetToken(args, 3));
+        usage_ok = rppicomidi::Rp2040_rtc::instance().set_date(year, month, day);
+    }
+    if (!usage_ok) {
+        printf("usage: set-date YYYY(1980-2107) MM(1-12) DD(1-31)\r\n");
+    }
+}
+
+void rppicomidi::Preset_manager::static_set_time(EmbeddedCli *cli, char *args, void *context)
+{
+    (void)cli;
+    (void)context;
+    bool usage_ok = false;
+    if (embeddedCliGetTokenCount(args) == 3) {
+        int8_t hour = atoi(embeddedCliGetToken(args, 1));
+        int8_t min = atoi(embeddedCliGetToken(args, 2));
+        int8_t sec = atoi(embeddedCliGetToken(args, 3));
+        usage_ok = rppicomidi::Rp2040_rtc::instance().set_time(hour, min, sec);
+    }
+    if (!usage_ok) {
+        printf("usage: set-time hour(0-23) min(0-59) sec(0-59)\r\n");
+    }
+}
+
+void rppicomidi::Preset_manager::static_get_fat_time(EmbeddedCli *cli, char *args, void *context)
+{
+    (void)cli;
+    (void)args;
+    (void)context;
+    DWORD f_time=get_fattime();
+    int16_t year = ((f_time >> 25 ) & 0x7F) + 1980;
+    int8_t month = ((f_time >> 21) & 0xf);
+    int8_t day = ((f_time >> 16) & 0x1f);
+    int8_t hour = ((f_time >> 11) & 0x1f);
+    int8_t min = ((f_time >> 5) & 0x3F);
+    int8_t sec = ((f_time &0x1f)*2);
+    printf("%02d/%02d/%04d %02d:%02d:%02d\r\n", month, day, year, hour, min, sec);
+}
+
 //-------------MSC/FATFS IMPLEMENTATION -------------//
 static scsi_inquiry_resp_t inquiry_resp;
 static FATFS fatfs[FF_VOLUMES];
@@ -699,7 +955,8 @@ void tuh_msc_mount_cb(uint8_t dev_addr)
             printf("f_chdrive(%s) failed\r\n", path);
         }
     }
-    printf("Mass Storage drive %u is mounted\r\n", pdrv);
+    printf("\r\nMass Storage drive %u is mounted\r\n", pdrv);
+    printf("Run the set-date and set-time commands so file timestamps are correct\r\n\r\n");
 }
 
 void tuh_msc_umount_cb(uint8_t dev_addr)

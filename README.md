@@ -2,17 +2,27 @@
 Use a Raspberry Pi Pico to interconnect MIDI devices via a USB hub or old school MIDI.
 
 This project uses a Pico board, a micro USB to USB A adapter, and a powered USB hub
-to run software that routes MIDI data among all the devices connected to the hub. You
-configure the routing with command line interpreter commands through a serial port
-terminal. The software uses some of the Pico board's program flash for a file system
+to run software that routes MIDI data among all the devices connected to the hub.
+There is a UART DIN MIDI IN and a UART DIN MIDI OUT, so you can connect
+to old school MIDI too. You can route the UART MIDI the same way your route USB MIDI.
+You configure the routing with command line interpreter (CLI) commands through
+a serial port terminal.
+
+The software uses some of the Pico board's program flash for a file system
 to store configurations in presets. If you save your settings to a preset, then
 the midi2usbhub software will automatically reload the last saved preset on startup
 and when you plug a Connected MIDI Device to the hub. You can back up any or all of
 your presets to a USB Flash drive connected to the USB hub. Presets are stored in
-JSON format. There is a UART DIN MIDI IN and a UART DIN MIDI OUT, so you can connect
-to old school MIDI too. You can route the UART MIDI the same way your route USB MIDI.
+JSON format.
 
 # Project Status
+24-Nov-2022
+- All features implemented except future features
+- Need to clean up code and documentation and fix issues.
+- Need to document the hardware.
+- I have seen an assert that happens sometimes at startup with many devices plugged
+to the hub. Need to figure that one out especially because it causes a crash.
+
 22-Nov-2022
 You can now save and load setups using Pico program flash storage. The last preset
 save or loaded will be remembered on startup or when a device is plugged or unplugged.
@@ -37,9 +47,19 @@ yet. Not easily repeatable. UART MIDI is also implemented.
 - fsstat
 - ls
 - rm
+- backup
+- restore
+- f-cd
+- f-chdrive
+- f-ls
+- f-pwd
+- set-date
+- set-time
+- get-datetime
+
 
 ## TODO
-- backup and restore to flash drive
+- clean up code and fix bugs
 
 ## Future Feature
 - Implement on a Pico-W with embedded web server support so you don't need to use
@@ -205,9 +225,8 @@ saved using the save command, then print an error message to the console.
 Copy the specified preset to USB flash drive to a file on the drive named `/rppicomidi-midi2usbhub/<preset name>`. If no preset name is given, then all presets are copied to the
 flash drive.
 
-## restore [\<preset name\>]
-Copy the specified preset from the USB flash drive directory `/rppicomidi-midi2usbhub/<preset name>` to the file system on Pico board's program flash. If no preset name is specified, then
-all presets from the USB flash drive directory `/rppicomidi-midi2usbhub` will be copied.
+## restore \<preset name\>
+Copy the specified preset from the USB flash drive directory `/rppicomidi-midi2usbhub/<preset name>` to the file system on Pico board's program flash.
 
 ## format
 Reformat the LittleFs file system in the Pico's program memory. It delete all presets.
@@ -237,3 +256,16 @@ specified. Otherwise, list the contents of the specified path.
 
 ## f-pwd
 Print the current directory path of the current USB flash drive.
+
+## set-date \<year(2022-9999)\> \<month(1-12)\> \<day(1-31)\>
+Change real-time clock date. The date and time is used for external flash drive file timestamps.
+
+## set-time \<hour(0-23)\> \<minute(0-59)\> \<second(0-59)\>
+Change the real-time clock time of day.
+The date and time is used for external flash drive file timestamps.
+
+## get-datetime
+Print the current date and time as read from the on-chip real-time clock. The time
+has a resolution of 2 seconds as because that is what is required for flash drive
+file timestamps. The initial date and time will be the last time you built the
+msc-rp2040rtc library.

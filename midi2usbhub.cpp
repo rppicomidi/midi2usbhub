@@ -298,7 +298,7 @@ rppicomidi::Midi2usbhub::Midi2usbhub()
         .rxBufferSize = 64,
         .cmdBufferSize = 64,
         .historyBufferSize = 128,
-        .maxBindingCount = 18,
+        .maxBindingCount = 22,
         .cliBuffer = NULL,
         .cliBufferSize = 0,
         .enableAutoComplete = true,
