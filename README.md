@@ -16,28 +16,31 @@ your presets to a USB Flash drive connected to the USB hub. Presets are stored i
 JSON format.
 
 # Project Status
-1-Dec-2022
+### 1-Dec-2022
 - Added support for Pico-W board LED
 - Added hardware description
-- Still need to review code comments and internal documentation
-24-Nov-2022
+- Still need to review code comments and internal documentation, clean up
+formatting, etc.
+
+### 24-Nov-2022
 - All features implemented except future features
 - Need to clean up code and documentation and fix issues.
 - Need to document the hardware.
 - I have seen an assert that happens sometimes at startup with many devices plugged
 to the hub. Need to figure that one out especially because it causes a crash.
 
-22-Nov-2022
+### 22-Nov-2022
 You can now save and load setups using Pico program flash storage. The last preset
 save or loaded will be remembered on startup or when a device is plugged or unplugged.
 Expanded the command set to allow for LittleFs management. Still need to implement
 backup and restore.
-20-Nov-2022
+
+### 20-Nov-2022
 Very early public release to help with USB MIDI host hub testing. Definitely not done.
 May crash from time to time when you plug in a new device. I have not investigated that
 yet. Not easily repeatable. UART MIDI is also implemented.
 
-## Future Feature
+## Future Features
 - Implement on a Pico-W with embedded web server support so you don't need to use
 the CLI.
 
