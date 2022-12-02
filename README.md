@@ -16,6 +16,10 @@ your presets to a USB Flash drive connected to the USB hub. Presets are stored i
 JSON format.
 
 # Project Status
+1-Dec-2022
+- Added support for Pico-W board LED
+- Added hardware description
+- Still need to review code comments and internal documentation
 24-Nov-2022
 - All features implemented except future features
 - Need to clean up code and documentation and fix issues.
@@ -33,37 +37,45 @@ Very early public release to help with USB MIDI host hub testing. Definitely not
 May crash from time to time when you plug in a new device. I have not investigated that
 yet. Not easily repeatable. UART MIDI is also implemented.
 
-## Commands supported:
-- list
-- connect
-- disconnect
-- rename
-- reset
-- show
-- help
-- save
-- load
-- format
-- fsstat
-- ls
-- rm
-- backup
-- restore
-- f-cd
-- f-chdrive
-- f-ls
-- f-pwd
-- set-date
-- set-time
-- get-datetime
-
-
-## TODO
-- clean up code and fix bugs
-
 ## Future Feature
 - Implement on a Pico-W with embedded web server support so you don't need to use
 the CLI.
+
+# Hardware
+If you already built [midi2usbhost](https://github.com/rppicomidi/midi2usbhost) hardware,
+you can use that again for this project. As of this writing, it is the same: you need
+a USB host connector, a source for 5V power, a MIDI IN port, and a MIDI OUT port. You just
+need to plug a powered USB hub to the USB host port. The only difference is that this
+project has a CLI user interface through the pins for UART1.
+
+If you build your own MIDI hardware, please test it carefully before you plug it into
+an expensive musical instrument.
+
+For this project, I am showing a more finished project. I built it with a Pico-W board because I want to eventually control it via a browser instead of, or perhap in addition
+to, the CLI. The enclosure is a [Bud CU-1941](https://www.budind.com/wp-content/uploads/2019/01/hbcu1941.pdf) with the insides smoothed out and holes
+cut for the connectors. Smoothing away the PCB card guides was a pain. I would use
+something else of similar dimensions if I were doing it over again.
+The USB breakout boards mount on M2 standoffs, and the
+main board attaches to the box with M2 screws with M2 nuts serving as standoffs.
+![](doc/midi2usbhub-inside-box.JPG). 
+
+I wired a generic USB A breakout board directly to the Pico's testpoints for GND,
+D+ and D-; the 5V VBus comes from Pico board pin 40:
+![](doc/midi2usbhub-picow.JPG)
+
+The Pico-W board plugs to hand-wired board that holds the MIDI IN, the MIDI OUT, and
+the 5V power connector. I hacked up a 5cm x 7cm board so it would fit in my project box.
+![](doc/midi2usbhub-motherboard.JPG)
+
+Bottom view:
+![](doc/midi2usbhub-bottomview.JPG)
+
+The Pico board gets 5V and GND from the VBus and GND pins of a USB C breakout board.
+I used the 3.3V MIDI IN circuit from [here](https://diyelectromusic.wordpress.com/2021/02/15/midi-in-for-3-3v-microcontrollers/) and I followed the
+[MIDI Specification](https://www.midi.org/specifications/midi-transports-specifications/5-pin-din-electrical-specs) for 3.3V MIDI OUT. I admit to cheating by using 1/4W 33 ohm
+resistor; I didn't have a 1/2W resistor on hand. Hopefully that MIDI OUT pin never gets
+shorted to ground for very long because it will fry the resistor. I substituted a Sharp
+PC900V for the MIDI IN circuit's H11L1M because it was what I had.
 
 # Setting Up Your Build and Debug Environment
 I am running Ubuntu Linux 20.04LTS on an old PC. I have Visual Studio Code (VS Code)
@@ -114,6 +126,12 @@ git apply ${PICO_MIDI_PROJECTS}/midi2usbhub/patches/0001-Fix-RP2040-Issue-1721.p
 
 Enter this series of commands (assumes you installed the pico-sdk
 and the midid2usbhub project in the ${PICO_MIDI_PROJECTS} directory)
+
+If your system is based on a Pico W board, enter this command first
+```
+export PICO_BOARD=pico_w
+```
+For all boards, enter this commands.
 
 ```
 export PICO_SDK_PATH=${PICO_MIDI_PROJECTS}/pico-sdk/
