@@ -37,6 +37,9 @@
 #include "bsp/board.h"
 #include "preset_manager.h"
 #include "diskio.h"
+#ifdef RPPICOMIDI_PICO_W
+#include "pico/cyw43_arch.h"
+#endif
 void rppicomidi::Midi2usbhub::serialize(std::string &serialized_string)
 {
     JSON_Value *root_value = json_value_init_object();
@@ -196,7 +199,11 @@ void rppicomidi::Midi2usbhub::blink_led()
     int64_t diff = absolute_time_diff_us(previous_timestamp, now);
     if (diff > 1000000)
     {
+        #ifndef RPPICOMIDI_PICO_W
         gpio_put(LED_GPIO, led_state);
+        #else
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
+        #endif
         led_state = !led_state;
         previous_timestamp = now;
     }
@@ -417,7 +424,12 @@ void rppicomidi::Midi2usbhub::task()
 int main()
 {
     rppicomidi::Midi2usbhub &instance = rppicomidi::Midi2usbhub::instance();
-
+#ifdef RPPICOMIDI_PICO_W
+    if (cyw43_arch_init()) {
+        printf("WiFi init failed");
+        return -1;
+    }
+#endif
     while (1)
     {
         instance.task();
