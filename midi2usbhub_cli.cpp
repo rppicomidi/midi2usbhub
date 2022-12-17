@@ -126,75 +126,58 @@ void rppicomidi::Midi2usbhub_cli::static_list(EmbeddedCli *, char *, void *)
 void rppicomidi::Midi2usbhub_cli::static_connect(EmbeddedCli *cli, char *args, void *)
 {
     (void)cli;
-    if (embeddedCliGetTokenCount(args) != 2)
-    {
+    if (embeddedCliGetTokenCount(args) != 2) {
         printf("connect <FROM nickname> <TO nickname>\r\n");
         return;
     }
     auto from_nickname = std::string(embeddedCliGetToken(args, 1));
     auto to_nickname = std::string(embeddedCliGetToken(args, 2));
-    for (auto &in_port : Midi2usbhub::instance().get_midi_in_port_list())
-    {
-        if (in_port->nickname == from_nickname)
-        {
-            for (auto out_port : Midi2usbhub::instance().get_midi_out_port_list())
-            {
-                if (out_port->nickname == to_nickname)
-                {
-                    in_port->sends_data_to_list.push_back(out_port);
-                    printf("%s connect to %s: successful\r\n",
-                           in_port->nickname.c_str(), out_port->nickname.c_str());
-                    return;
-                }
-            }
+    switch (Midi2usbhub::instance().connect(from_nickname, to_nickname)) {
+        case 0:
+            printf("%s connect to %s: successful\r\n",
+                           from_nickname.c_str(), to_nickname.c_str());
+            break;
+        case -1:
             printf("TO nickname %s not found\r\n", to_nickname.c_str());
-        }
+            break;
+        case -2:
+            printf("FROM nickname %s not found\r\n", from_nickname.c_str());
+            break;
+        default:
+            printf("unknown return from connect()\r\n");
+            break;
     }
-    printf("FROM nickname %s not found\r\n", from_nickname.c_str());
 }
 
 void rppicomidi::Midi2usbhub_cli::static_disconnect(EmbeddedCli *cli, char *args, void *)
 {
     (void)cli;
-    if (embeddedCliGetTokenCount(args) != 2)
-    {
+    if (embeddedCliGetTokenCount(args) != 2) {
         printf("disconnect <FROM nickname> <TO nickname>\r\n");
         return;
     }
     auto from_nickname = std::string(embeddedCliGetToken(args, 1));
     auto to_nickname = std::string(embeddedCliGetToken(args, 2));
-    for (auto &in_port : Midi2usbhub::instance().get_midi_in_port_list())
-    {
-        if (in_port->nickname == from_nickname)
-        {
-            for (auto it = in_port->sends_data_to_list.begin();
-                 it != in_port->sends_data_to_list.end();)
-            {
-                if ((*it)->nickname == to_nickname)
-                {
-                    in_port->sends_data_to_list.erase(it);
-                    printf("%s disconnect %s: successful\r\n",
-                           in_port->nickname.c_str(), to_nickname.c_str());
-                    return;
-                }
-                else
-                {
-                    ++it;
-                }
-            }
+    switch (Midi2usbhub::instance().disconnect(from_nickname, to_nickname)) {
+        case 0:
+            printf("%s disconnect to %s: successful\r\n",
+                           from_nickname.c_str(), to_nickname.c_str());
+            break;
+        case -1:
             printf("TO nickname %s not found\r\n", to_nickname.c_str());
-            return;
-        }
+            break;
+        case -2:
+            printf("FROM nickname %s not found\r\n", from_nickname.c_str());
+            break;
+        default:
+            printf("unknown return from disconnect()\r\n");
+            break;
     }
-    printf("FROM nickname %s not found\r\n", from_nickname.c_str());
 }
 
 void rppicomidi::Midi2usbhub_cli::static_reset(EmbeddedCli *, char *, void *)
 {
-    for (auto &in_port : Midi2usbhub::instance().get_midi_in_port_list())
-    {
-        in_port->sends_data_to_list.clear();
-    }
+    rppicomidi::Midi2usbhub::instance().reset();
 }
 
 void rppicomidi::Midi2usbhub_cli::static_show(EmbeddedCli *, char *, void *)
@@ -258,47 +241,27 @@ void rppicomidi::Midi2usbhub_cli::static_show(EmbeddedCli *, char *, void *)
 void rppicomidi::Midi2usbhub_cli::static_rename(EmbeddedCli *cli, char *args, void *)
 {
     (void)cli;
-    if (embeddedCliGetTokenCount(args) != 2)
-    {
+    if (embeddedCliGetTokenCount(args) != 2) {
         printf("usage: rename <Old Nickname> <New Nickname>\r\n");
         return;
     }
     auto old_nickname = std::string(embeddedCliGetToken(args, 1));
     auto new_nickname = std::string(embeddedCliGetToken(args, 2));
-    // make sure the new nickname is not already in use
-    for (auto &midi_in : Midi2usbhub::instance().get_midi_in_port_list())
-    {
-        if (midi_in->nickname == new_nickname)
-        {
+    switch (Midi2usbhub::instance().rename(old_nickname, new_nickname)) {
+        case -1:
             printf("New Nickname %s already in use\r\n", new_nickname.c_str());
-            return;
-        }
-    }
-    for (auto &midi_out : Midi2usbhub::instance().get_midi_out_port_list())
-    {
-        if (midi_out->nickname == new_nickname)
-        {
-            printf("New Nickname %s already in use\r\n", new_nickname.c_str());
-            return;
-        }
-    }
-    for (auto &midi_in : Midi2usbhub::instance().get_midi_in_port_list())
-    {
-        if (midi_in->nickname == old_nickname)
-        {
-            midi_in->nickname = new_nickname;
+            break;
+        case -2:
+            printf("Old Nickname %s not found\r\n", old_nickname.c_str());
+            break;
+        case 1:
             printf("FROM Nickname %s set to %s\r\n", old_nickname.c_str(), new_nickname.c_str());
-            return;
-        }
-    }
-    for (auto &midi_out : Midi2usbhub::instance().get_midi_out_port_list())
-    {
-        if (midi_out->nickname == old_nickname)
-        {
-            midi_out->nickname = new_nickname;
+            break;
+        case 2:
             printf("TO Nickname %s set to %s\r\n", old_nickname.c_str(), new_nickname.c_str());
-            return;
-        }
+            break;
+        default:
+            printf("unknown return from rename()\r\n");
+            break;
     }
-    printf("Old Nickname %s not found\r\n", old_nickname.c_str());
 }

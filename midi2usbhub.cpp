@@ -185,6 +185,77 @@ bool rppicomidi::Midi2usbhub::deserialize(std::string &serialized_string)
     return true;
 }
 
+
+int rppicomidi::Midi2usbhub::connect(const std::string& from_nickname, const std::string& to_nickname)
+{
+    for (auto &in_port : midi_in_port_list) {
+        if (in_port->nickname == from_nickname) {
+            for (auto out_port : midi_out_port_list) {
+                if (out_port->nickname == to_nickname) {
+                    in_port->sends_data_to_list.push_back(out_port);
+                    return 0;
+                }
+            }
+           return -1;
+        }
+    }
+    return -2;
+}
+
+int rppicomidi::Midi2usbhub::disconnect(const std::string& from_nickname, const std::string& to_nickname)
+{
+    for (auto &in_port : midi_in_port_list) {
+        if (in_port->nickname == from_nickname) {
+            for (auto it = in_port->sends_data_to_list.begin(); it != in_port->sends_data_to_list.end();) {
+                if ((*it)->nickname == to_nickname) {
+                    in_port->sends_data_to_list.erase(it);
+                    return 0;
+                }
+                else {
+                    ++it;
+                }
+            }
+            return -1;
+        }
+    }
+    return -2;
+}
+
+void rppicomidi::Midi2usbhub::reset()
+{
+    for (auto &in_port :midi_in_port_list) {
+        in_port->sends_data_to_list.clear();
+    }
+}
+
+int rppicomidi::Midi2usbhub::rename(const std::string& old_nickname, const std::string& new_nickname)
+{
+    // make sure the new nickname is not already in use
+    for (auto midi_in : midi_in_port_list) {
+        if (midi_in->nickname == new_nickname) {
+            return 0;
+        }
+    }
+    for (auto midi_out : midi_out_port_list) {
+        if (midi_out->nickname == new_nickname) {
+            return 0;
+        }
+    }
+    for (auto &midi_in : midi_in_port_list) {
+        if (midi_in->nickname == old_nickname) {
+            midi_in->nickname = new_nickname;
+            return 1;
+        }
+    }
+    for (auto &midi_out : midi_out_port_list) {
+        if (midi_out->nickname == old_nickname) {
+            midi_out->nickname = new_nickname;
+            return 2;
+        }
+    }
+    return -2;
+}
+
 void rppicomidi::Midi2usbhub::blink_led()
 {
     static absolute_time_t previous_timestamp = {0};
@@ -375,8 +446,7 @@ int main()
         return -1;
     }
 #endif
-    while (1)
-    {
+    while (1) {
         instance.task();
     }
 }

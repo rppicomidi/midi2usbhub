@@ -123,11 +123,57 @@ namespace rppicomidi
          */
         void serialize(std::string &serialized_settings);
         bool deserialize(std::string &serialized_settings);
+        /**
+         * @brief connect the MIDI stream from the device and port from_nickname
+         * to the device and port to_nickname
+         *
+         * @param from_nickname the nickname that represents the device an port
+         * of the MIDI stream source
+         * @param to_nickname the nickname that represents the device an port
+         * of the MIDI stream sink
+         * @return int 0 if successful, -1 if the to_nickname is invalid, -2
+         * if the from_nickname is invalid
+         */
+        int connect(const std::string& from_nickname, const std::string& to_nickname);
 
+        /**
+         * @brief disconnect the MIDI stream from the device and port from_nickname
+         * to the device and port to_nickname
+         *
+         * @param from_nickname the nickname that represents the device an port
+         * of the MIDI stream source
+         * @param to_nickname the nickname that represents the device an port
+         * of the MIDI stream sink
+         * @return int 0 if successful, -1 if the to_nickname is invalid, -2
+         * if the from_nickname is invalid
+         */
+        int disconnect(const std::string& from_nickname, const std::string& to_nickname);
+
+        /**
+         * @brief clear all MIDI stream connections
+         *
+         */
+        void reset();
+
+        /**
+         * @brief rename a device and port nickname
+         *
+         * @param old_nickname the previous nickname of the device and port
+         * @param new_nickname the new nickname of the device and port
+         * @return int -1 if the new_nickname is already in use, -2 if the old_nickname is not found,
+         * 1 if FROM nickname renamed successfully, 2 if TO nickname renamed successfully
+         */
+        int rename(const std::string& old_nickname, const std::string& new_nickname);
+
+        /**
+         * @brief route the MIDI traffic
+         *
+         */
         void task();
+
         Midi_device_info* get_attached_device(size_t addr) { if (addr < 1 || addr > CFG_TUH_DEVICE_MAX) return nullptr; return &attached_devices[addr]; }
-        std::vector<Midi_out_port *>& get_midi_out_port_list() {return midi_out_port_list; }
-        std::vector<Midi_in_port *>& get_midi_in_port_list() {return midi_in_port_list; }
+        const std::vector<Midi_out_port *>& get_midi_out_port_list() {return midi_out_port_list; }
+        const std::vector<Midi_in_port *>& get_midi_in_port_list() {return midi_in_port_list; }
     private:
         Midi2usbhub();
         Preset_manager preset_manager;
