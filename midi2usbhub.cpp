@@ -37,6 +37,8 @@
 #include "bsp/board.h"
 #include "preset_manager.h"
 #include "diskio.h"
+#include "pico_lfs_cli.h"
+#include "pico_fatfs_cli.h"
 #ifdef RPPICOMIDI_PICO_W
 #include "pico/cyw43_arch.h"
 #endif
@@ -305,7 +307,10 @@ rppicomidi::Midi2usbhub::Midi2usbhub()
         .rxBufferSize = 64,
         .cmdBufferSize = 64,
         .historyBufferSize = 128,
-        .maxBindingCount = 22,
+        .maxBindingCount = static_cast<uint16_t>(6 +
+                            Preset_manager::get_num_commands() +
+                            Pico_lfs_cli::get_num_commands() +
+                            Pico_fatfs_cli::get_num_commands()),
         .cliBuffer = NULL,
         .cliBufferSize = 0,
         .enableAutoComplete = true,
@@ -343,8 +348,9 @@ rppicomidi::Midi2usbhub::Midi2usbhub()
                                        false,
                                        this,
                                        static_show}));
-
     Preset_manager::instance().init_cli(cli);
+    Pico_lfs_cli lfs_cli(cli);
+    Pico_fatfs_cli fatfs_cli(cli);
     printf("Cli is running.\r\n");
     printf("Type \"help\" for a list of commands\r\n");
     printf("Use backspace and tab to remove chars and autocomplete\r\n");

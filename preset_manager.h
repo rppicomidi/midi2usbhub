@@ -78,6 +78,7 @@ public:
      * @param preset_name is set to the current preset name
      */
     void get_current_preset_name(std::string& preset_name) { preset_name = current_preset_name; }
+    static uint16_t get_num_commands() { return 4; }
 private:
     Preset_manager();
     /**
@@ -97,45 +98,15 @@ private:
     int load_settings_string(const char* fn, char** raw_settings_ptr, bool mount=true);
 
     bool update_current_preset(std::string& preset_name, bool mount = true);
-    /**
-     * @brief See https://github.com/littlefs-project/littlefs/issues/2
-     * 
-     * @param lfs pointer to lfs object
-     * @param path root path string
-     * @return int 0 if no error, < 0 if there is an error
-     */
 
-    int lfs_ls(const char *path);
-    /**
-     * @brief remove a file from the lfs filesystem
-     *
-     * @param filename the full path to the file
-     * @param mount is true to mount the filesystem on entry and unmount it on exit
-     * @return int LFS_ERR_OK if successful, a negative error code if not
-     */
-    int delete_file(const char* filename, bool mount=true);
     FRESULT backup_all_presets();
     FRESULT backup_preset(const char* preset_name, bool mount=true);
     FRESULT restore_preset(const char* preset_name);
-    void print_fat_date(WORD wdate);
-    void print_fat_time(WORD wtime);
-    FRESULT scan_files(const char* path);
-    static void static_file_system_format(EmbeddedCli*, char*, void*);
-    static void static_file_system_status(EmbeddedCli*, char*, void*);
-    static void static_list_files(EmbeddedCli* cli, char* args, void* context);
-    static void static_print_file(EmbeddedCli* cli, char* args, void* context);
-    static void static_delete_file(EmbeddedCli* cli, char* args, void*);
     static void static_save_current_preset(EmbeddedCli* cli, char* args, void*);
     static void static_load_preset(EmbeddedCli* cli, char* args, void*);
-    static void static_fatfs_ls(EmbeddedCli *cli, char *args, void *context);
-    static void static_fatfs_cd(EmbeddedCli* cli, char* args, void* context);
-    static void static_fatfs_chdrive(EmbeddedCli *cli, char *args, void *);
-    static void static_fatfs_pwd(EmbeddedCli *, char *, void *);
     static void static_fatfs_backup(EmbeddedCli *cli, char *args, void *context);
     static void static_fatfs_restore(EmbeddedCli* cli, char* args, void*);
-    static void static_set_date(EmbeddedCli *cli, char *args, void *context);
-    static void static_set_time(EmbeddedCli *cli, char *args, void *context);
-    static void static_get_fat_time(EmbeddedCli *cli, char *args, void *context);
+
 
     std::string current_preset_name;
     static constexpr const char* preset_dir_name = "/rppicomidi-midi2usbhub";
