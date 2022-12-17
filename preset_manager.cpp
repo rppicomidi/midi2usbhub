@@ -66,39 +66,6 @@ rppicomidi::Preset_manager::Preset_manager()
     msc_fat_init();
 }
 
-void rppicomidi::Preset_manager::init_cli(EmbeddedCli* cli)
-{
-    assert(embeddedCliAddBinding(cli, {
-        "load",
-        "load the current preset from the preset file name. usage: load <preset name>",
-        true,
-        this,
-        static_load_preset
-    }));
-    assert(embeddedCliAddBinding(cli, {
-        "save",
-        "save the current configuration as a preset. usage: save <preset name>",
-        true,
-        this,
-        static_save_current_preset
-    }));
-    assert(embeddedCliAddBinding(cli, {
-        "backup",
-        "backup the preset to USB drive, or all presets if none specified. usage: backup [preset name]",
-        true,
-        this,
-        static_fatfs_backup
-    }));
-    assert(embeddedCliAddBinding(cli, {
-        "restore",
-        "restore the preset from the USB drive. usage: restore <preset name>",
-        true,
-        this,
-        static_fatfs_restore
-    }));
-
-}
-
 bool rppicomidi::Preset_manager::save_current_preset(std::string preset_name)
 {
     // mount the lfs
@@ -228,18 +195,6 @@ int rppicomidi::Preset_manager::load_settings_string(const char* settings_filena
     }
 }
 
-void rppicomidi::Preset_manager::static_save_current_preset(EmbeddedCli* cli, char* args, void*)
-{
-    (void)cli;
-    if (embeddedCliGetTokenCount(args) != 1) {
-        printf("usage: save <filename>\r\n");
-        return;
-    }
-    if (instance().save_current_preset(std::string(embeddedCliGetToken(args, 1)))) {
-        printf("Saved preset %s as current preset\r\n",embeddedCliGetToken(args, 1));
-    }
-}
-
 bool rppicomidi::Preset_manager::load_preset(std::string preset_name)
 {
     char* raw_preset_string;
@@ -263,24 +218,6 @@ bool rppicomidi::Preset_manager::load_preset(std::string preset_name)
     }
     return result;
 }
-
-void rppicomidi::Preset_manager::static_load_preset(EmbeddedCli* cli, char* args, void*)
-{
-    (void)cli;
-    if (embeddedCliGetTokenCount(args) != 1) {
-        printf("usage: load <filename>\r\n");
-        return;
-    }
-    if (instance().load_preset(std::string(embeddedCliGetToken(args, 1)))) {
-        printf("Loaded preset %s as current preset\r\n",embeddedCliGetToken(args, 1));
-    }
-    else {
-        printf("Failed to load preset %s\r\n", embeddedCliGetToken(args, 1));
-    }
-}
-
-
-
 
 FRESULT rppicomidi::Preset_manager::backup_preset(const char* preset_name, bool mount)
 {
@@ -397,28 +334,6 @@ FRESULT rppicomidi::Preset_manager::backup_all_presets()
     return FR_OK;
 }
 
-void rppicomidi::Preset_manager::static_fatfs_backup(EmbeddedCli *cli, char *args, void *)
-{
-    (void)cli;
-    uint16_t argc = embeddedCliGetTokenCount(args);
-    FRESULT res;
-    if (argc == 0) {
-        res = instance().backup_all_presets();
-        if (res != FR_OK) {
-            printf("Error %u backing up files on drive\r\n", res);
-        }
-    }
-    else if (argc == 1) {
-        const char* preset_name = embeddedCliGetToken(args, 1);
-        res = instance().backup_preset(preset_name);
-        if (res != FR_OK) {
-            printf("error %d backing up preset %s\r\n", res, preset_name);
-        }
-    }
-    else {
-        printf("usage: backup <preset name>\r\n");
-    }
-}
 
 FRESULT rppicomidi::Preset_manager::restore_preset(const char* preset_name)
 {
@@ -465,24 +380,6 @@ FRESULT rppicomidi::Preset_manager::restore_preset(const char* preset_name)
     }
     return FR_OK;
 }
-
-void rppicomidi::Preset_manager::static_fatfs_restore(EmbeddedCli* cli, char* args, void*)
-{
-    (void)cli;
-    uint16_t argc = embeddedCliGetTokenCount(args);
-    FRESULT res;
-    if (argc == 1) {
-        res = Preset_manager::instance().restore_preset(embeddedCliGetToken(args, 1));
-    }
-    else {
-        printf("usage: restore <preset name>\r\n");
-        return;
-    }
-    if (res != FR_OK) {
-        printf("error %u restoring preset from %s\r\n", res, embeddedCliGetToken(args, 1));
-    }
-}
-
 
 //-------------MSC/FATFS IMPLEMENTATION -------------//
 static scsi_inquiry_resp_t inquiry_resp;

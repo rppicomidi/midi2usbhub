@@ -20,6 +20,7 @@ add_executable(${target_proj}
     preset_manager.cpp
     pico_lfs_cli.cpp
     pico_fatfs_cli.cpp
+    preset_manager_cli.cpp
     ${EMBEDDED_CLI_PATH}/src/embedded_cli.c
     ${CMAKE_CURRENT_LIST_DIR}/ext_lib/parson/parson.c
 )

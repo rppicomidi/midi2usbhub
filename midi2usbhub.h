@@ -35,6 +35,7 @@
 #include "class/midi/midi_host.h"
 #include "embedded_cli.h"
 #include "parson.h"
+#include "preset_manager.h"
 
 namespace rppicomidi
 {
@@ -127,6 +128,8 @@ namespace rppicomidi
         void task();
     private:
         Midi2usbhub();
+        Preset_manager preset_manager;
+
         static void langid_cb(tuh_xfer_t *xfer);
         static void prod_str_cb(tuh_xfer_t *xfer);
 

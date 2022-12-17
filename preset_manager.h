@@ -36,23 +36,11 @@ namespace rppicomidi
 class Preset_manager
 {
 public:
-    // Singleton Pattern
+    Preset_manager();
 
-    /**
-     * @brief Get the Instance object
-     *
-     * @return the singleton instance
-     */
-    static Preset_manager &instance()
-    {
-        static Preset_manager _instance; // Guaranteed to be destroyed.
-                                         // Instantiated on first use.
-        return _instance;
-    }
     Preset_manager(Preset_manager const &) = delete;
     void operator=(Preset_manager const &) = delete;
     ~Preset_manager()=default;
-    void init_cli(EmbeddedCli* cli);
     /**
      * @brief Save the current settings to an LFS file called preset_name and
      * change the current preset to preset name
@@ -78,9 +66,31 @@ public:
      * @param preset_name is set to the current preset name
      */
     void get_current_preset_name(std::string& preset_name) { preset_name = current_preset_name; }
-    static uint16_t get_num_commands() { return 4; }
+
+    /**
+     * @brief Copy all presets to USB flash drive
+     * 
+     * @return FRESULT 
+     */
+    FRESULT backup_all_presets();
+
+    /**
+     * @brief Copy one preset to external flash drive
+     * 
+     * @param preset_name the preset name
+     * @param mount is true to mount the LFS file system on entry and unmount it on ext
+     * @return FRESULT FR_ERR_OK if successful, a FatFs error code if not
+     */
+    FRESULT backup_preset(const char* preset_name, bool mount=true);
+
+    /**
+     * @brief Restore the preset from external flash drive to the local LFS filesystem
+     * 
+     * @param preset_name the preset name
+     * @return FRESULT FR_ERR_OK if successful, a FatFs error code if not
+     */
+    FRESULT restore_preset(const char* preset_name);
 private:
-    Preset_manager();
     /**
      * @brief set raw_settings_ptr to point to the data contained in the settings
      * file fn.
@@ -98,15 +108,6 @@ private:
     int load_settings_string(const char* fn, char** raw_settings_ptr, bool mount=true);
 
     bool update_current_preset(std::string& preset_name, bool mount = true);
-
-    FRESULT backup_all_presets();
-    FRESULT backup_preset(const char* preset_name, bool mount=true);
-    FRESULT restore_preset(const char* preset_name);
-    static void static_save_current_preset(EmbeddedCli* cli, char* args, void*);
-    static void static_load_preset(EmbeddedCli* cli, char* args, void*);
-    static void static_fatfs_backup(EmbeddedCli *cli, char *args, void *context);
-    static void static_fatfs_restore(EmbeddedCli* cli, char* args, void*);
-
 
     std::string current_preset_name;
     static constexpr const char* preset_dir_name = "/rppicomidi-midi2usbhub";

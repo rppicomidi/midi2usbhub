@@ -39,6 +39,7 @@
 #include "diskio.h"
 #include "pico_lfs_cli.h"
 #include "pico_fatfs_cli.h"
+#include "preset_manager_cli.h"
 #ifdef RPPICOMIDI_PICO_W
 #include "pico/cyw43_arch.h"
 #endif
@@ -308,7 +309,7 @@ rppicomidi::Midi2usbhub::Midi2usbhub()
         .cmdBufferSize = 64,
         .historyBufferSize = 128,
         .maxBindingCount = static_cast<uint16_t>(6 +
-                            Preset_manager::get_num_commands() +
+                            Preset_manager_cli::get_num_commands() +
                             Pico_lfs_cli::get_num_commands() +
                             Pico_fatfs_cli::get_num_commands()),
         .cliBuffer = NULL,
@@ -348,7 +349,7 @@ rppicomidi::Midi2usbhub::Midi2usbhub()
                                        false,
                                        this,
                                        static_show}));
-    Preset_manager::instance().init_cli(cli);
+    Preset_manager_cli pm_cli(cli, &preset_manager);
     Pico_lfs_cli lfs_cli(cli);
     Pico_fatfs_cli fatfs_cli(cli);
     printf("Cli is running.\r\n");
@@ -501,8 +502,8 @@ void rppicomidi::Midi2usbhub::prod_str_cb(tuh_xfer_t *xfer)
             }
         }
         std::string current;
-        Preset_manager::instance().get_current_preset_name(current);
-        if (current.length() < 1 || !Preset_manager::instance().load_preset(current)) {
+        instance().preset_manager.get_current_preset_name(current);
+        if (current.length() < 1 || !instance().preset_manager.load_preset(current)) {
             printf("current preset load failed.\r\n");
         }
         devinfo->configured = true;
