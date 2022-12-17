@@ -36,7 +36,7 @@
 #include "embedded_cli.h"
 #include "parson.h"
 #include "preset_manager.h"
-
+#include "midi2usbhub_cli.h"
 namespace rppicomidi
 {
     class Midi2usbhub
@@ -61,7 +61,6 @@ namespace rppicomidi
         void poll_usb_rx();
         void flush_usb_tx();
         void poll_midi_uart_rx();
-        void cli_task();
         /**
          * @brief construct a nickname string from the input parameters
          * 
@@ -126,6 +125,9 @@ namespace rppicomidi
         bool deserialize(std::string &serialized_settings);
 
         void task();
+        Midi_device_info* get_attached_device(size_t addr) { if (addr < 1 || addr > CFG_TUH_DEVICE_MAX) return nullptr; return &attached_devices[addr]; }
+        std::vector<Midi_out_port *>& get_midi_out_port_list() {return midi_out_port_list; }
+        std::vector<Midi_in_port *>& get_midi_in_port_list() {return midi_in_port_list; }
     private:
         Midi2usbhub();
         Preset_manager preset_manager;
@@ -133,39 +135,7 @@ namespace rppicomidi
         static void langid_cb(tuh_xfer_t *xfer);
         static void prod_str_cb(tuh_xfer_t *xfer);
 
-        /*
-         * The following 3 functions are required by the EmbeddedCli library
-         */
-        static void onCommand(const char *name, char *tokens)
-        {
-            printf("Received command: %s\r\n", name);
 
-            for (int i = 0; i < embeddedCliGetTokenCount(tokens); ++i)
-            {
-                printf("Arg %d : %s\r\n", i, embeddedCliGetToken(tokens, i + 1));
-            }
-        }
-
-        static void onCommandFn(EmbeddedCli *embeddedCli, CliCommand *command)
-        {
-            (void)embeddedCli;
-            embeddedCliTokenizeArgs(command->args);
-            onCommand(command->name == NULL ? "" : command->name, command->args);
-        }
-
-        static void writeCharFn(EmbeddedCli *embeddedCli, char c)
-        {
-            (void)embeddedCli;
-            putchar(c);
-        }
-
-        // The following are CLI functions
-        static void static_list(EmbeddedCli *, char *, void *);
-        static void static_connect(EmbeddedCli *, char *, void *);
-        static void static_disconnect(EmbeddedCli *, char *, void *);
-        static void static_show(EmbeddedCli *, char *, void *);
-        static void static_reset(EmbeddedCli *, char *, void *);
-        static void static_rename(EmbeddedCli *, char *, void *);
 
         // UART selection Pin mapping. You can move these for your design if you want to
         // Make sure all these values are consistent with your choice of midi_uart
@@ -188,6 +158,6 @@ namespace rppicomidi
 
         Midi_in_port uart_midi_in_port;
         Midi_out_port uart_midi_out_port;
-        EmbeddedCli *cli;
+        Midi2usbhub_cli cli;
     };
 }
