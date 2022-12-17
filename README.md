@@ -16,6 +16,9 @@ your presets to a USB Flash drive connected to the USB hub. Presets are stored i
 JSON format.
 
 # Project Status
+### 16-Dec-2022
+- Separated the CLI from the Midi2usbhub class and from the Preset_manager class.
+- Preset_manager class is no longer a singleton but instead a member of Midi2usbhub class
 ### 1-Dec-2022
 - Added support for Pico-W board LED
 - Added hardware description

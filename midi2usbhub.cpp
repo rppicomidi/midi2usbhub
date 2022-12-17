@@ -503,7 +503,7 @@ void tuh_mount_cb(uint8_t dev_addr)
     rppicomidi::Midi2usbhub::instance().tuh_mount_cb(dev_addr);
 }
 
-// Invoked when device with hid interface is un-mounted
+// Invoked when device with MIDI interface is un-mounted
 void rppicomidi::Midi2usbhub::tuh_midi_unmount_cb(uint8_t dev_addr, uint8_t)
 {
     for (std::vector<Midi_in_port *>::iterator it = midi_in_port_list.begin(); it != midi_in_port_list.end();)
