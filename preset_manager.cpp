@@ -75,8 +75,6 @@ bool rppicomidi::Preset_manager::save_current_preset(std::string preset_name)
         return false;
     }
 
-    // TODO serialize the preset and save it
-    current_preset_name = preset_name;
     std::string ser;
     Midi2usbhub::instance().serialize(ser);
     lfs_file_t file;
