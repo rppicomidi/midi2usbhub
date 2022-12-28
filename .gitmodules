@@ -10,3 +10,9 @@
 [submodule "ext_lib/littlefs-lib"]
 	path = ext_lib/littlefs-lib
 	url = https://github.com/rppicomidi/littlefs-lib
+[submodule "lib/pico-w-connection-manager"]
+	path = lib/pico-w-connection-manager
+	url = https://github.com/rppicomidi/pico-w-connection-manager
+[submodule "lib/pico-c-utilities"]
+	path = lib/pico-c-utilities
+	url = https://github.com/rppicomidi/pico-c-utilities
