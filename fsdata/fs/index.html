@@ -43,27 +43,28 @@
             </table>
         </div>
 		<script>
+            var constr = '{"from":{"0000-0000F1":"MIDI-IN-A"},"to":{"0000-0000T1":"MIDI-OUT-A"},"routing":{"MIDI-IN-A":[]},"attached":{"0000-0000":"MIDI A"},"curpre":""}';
+            var tbl = new ConnectedDevicesTable(constr);
+            var tblR = new MidiRoutingTable(constr);
             window.onload = function () {
-                let constr = '{"0000-0000":"5-Pin MIDI", "0944-0134":"nanoKONTROL Studio", "0944-0117":"nanoKONTROL2"}';
-                let prestr = '{"from":{"0000-0000F1":"MIDI-IN-A","0944-0134F1":"nks-out","0944-0117F1":"nk2-out"},"to":{"0000-0000T1":"MIDI-OUT-A","0944-0134T1":"nks-in","0944-0117T1":"nk2-in"},"routing":{"MIDI-IN-A":["nks-in", "MIDI-OUT-A", "nk2-in"],"nks-out":[],"nk2-out":[]}}';
-                let tbl = new ConnectedDevicesTable(constr, prestr);
                 tbl.init();
-                let tblR = new MidiRoutingTable(constr, prestr);
                 tblR.init();
+                pollMidiHubState.reqMidiHubState();
 			};
-            /*
 			const pollMidiHubState = {
 				reqMidiHubState() {
 					this.req = new XMLHttpRequest();
 					this.req.onload = () => { if (this.req.readyState == this.req.DONE) {
 							let respCode = this.req.status;
 							if (respCode == 200) {
-								let data = JSON.parse(this.req.responseText);
-								let ls = document.getElementById('ledState').innerHTML;
-								if (ls != data.ledState) {
-									document.getElementById('ledState').innerHTML=data.ledState;
-									document.getElementById('led-switch').checked = (data.ledState == 'On');
-								}
+                                try {
+                                    JSON.parse(this.req.responseText); // will throw SyntaxError if not valid JSON
+								    tbl.reinit(this.req.responseText);
+                                    tblR.reinit(this.req.responseText);
+                                }
+                                catch (error) {
+                                    console.log(error);
+                                }
 							}
 							this.req = undefined;
 							this.setup();
@@ -96,7 +97,7 @@
 				}
 			};
 
-
+            /*
 			function ledupdate() {
 				pollLedState.cancel();
 				let req = new XMLHttpRequest();
@@ -146,7 +147,7 @@
 				var data = document.getElementById('led-switch').checked ? {"ledState":"On"} : {"ledState":"Off"};
 				req.send(JSON.stringify(data));
 			}
-        */
+            */
 		</script>
 	</body>
 </html>

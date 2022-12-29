@@ -1,8 +1,8 @@
 class ConnectedDevicesTable
 {
-    constructor(jsonDevices, jsonPreset) {
-        this.devices = JSON.parse(jsonDevices);
-        this.preset = JSON.parse(jsonPreset);
+    constructor(jsonState) {
+        this.jsonState = jsonState;
+        this.state = JSON.parse(jsonState);
         this.maxNickname = 12;
         this.userInputHandler = new UserInputHandler(this.maxNickname);
     }
@@ -30,19 +30,12 @@ class ConnectedDevicesTable
                     nickname.addEventListener("input", (ev) => {
                         this.handleInput(ev);
                     });
-                    /*
-                    nickname.addEventListener("keydown", (ev) => {
-                        this.handleKeydown(ev);
-                    });
-                    nickname.addEventListener('paste', (ev) => {
-                        this.handlePaste(ev);
-                    })*/
                     nickname.addEventListener('click', (ev) => {
                         if (!this.inEditing(nickname)) {
                             this.startEditing(nickname);
                         }
                     });
-                    this.insertCell(new_row, this.devices[dev]);
+                    this.insertCell(new_row, this.state.attached[dev]);
                 }
             }
         }
@@ -70,28 +63,34 @@ class ConnectedDevicesTable
 
     init() {
         let new_tbody = document.createElement('tbody');
-        for (let dev in this.devices) {
-            if (this.devices.hasOwnProperty(dev)) {
+        new_tbody.setAttribute('id', 'devlist');
+        for (let dev in this.state.attached) {
+            if (this.state.attached.hasOwnProperty(dev)) {
                 // dev is the USB ID. Alternately search from and
                 // to lists for the same ID an populate table rows accordingly
-                this.buildTableRow(dev, this.preset.from, 'FROM',new_tbody);
-                this.buildTableRow(dev, this.preset.to, 'TO', new_tbody);
+                this.buildTableRow(dev, this.state.from, 'FROM',new_tbody);
+                this.buildTableRow(dev, this.state.to, 'TO', new_tbody);
             }
         }
         let old_tbody = document.querySelector('#devlist');
-        //console.log("BEFORE: rows="+old_tbody.rows.length);
 
         old_tbody.parentNode.replaceChild(new_tbody, old_tbody);
-        //console.log("AFTER: rows="+new_tbody.rows.length);
-        //if (new_tbody.rows.length > 0) {
-        //    console.log("AFTER: cols="+new_tbody.rows[0].cells.length);
-        //}
     }
+
+    reinit(jsonState) {
+        if (jsonState !== this.jsonState) {
+            this.jsonState = jsonState;
+            this.state = JSON.parse(jsonState);
+            this.init();
+        }
+    }
+
     startEditing(td) {
         td.className = 'in-editing';
         td.setAttribute('data-old-name',td.textContent);
         this.createButtonToolbar(td);
     }
+
     cancelEditing(td) {
         td.classList.remove('in-editing');
         this.removeToolbar(td);

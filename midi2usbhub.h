@@ -123,9 +123,9 @@ namespace rppicomidi
          * @param serialized_settings
          */
         void serialize(std::string &serialized_settings);
+        JSON_Value* serialize_to_json();
         bool deserialize(const std::string &serialized_settings);
 
-        void update_json_connected_state();
         /**
          * @brief connect the MIDI stream from the device and port from_nickname
          * to the device and port to_nickname
@@ -177,7 +177,7 @@ namespace rppicomidi
 #ifdef RPPICOMIDI_PICO_W
         void get_connected();
 #endif
-        Midi_device_info* get_attached_device(size_t addr) { if (addr < 1 || addr > CFG_TUH_DEVICE_MAX) return nullptr; return &attached_devices[addr]; }
+        Midi_device_info* get_attached_device(size_t addr) { if (addr < 1 || addr > uart_devaddr) return nullptr; return &attached_devices[addr]; }
         const std::vector<Midi_out_port *>& get_midi_out_port_list() {return midi_out_port_list; }
         const std::vector<Midi_in_port *>& get_midi_in_port_list() {return midi_in_port_list; }
 
@@ -187,9 +187,7 @@ namespace rppicomidi
          * @return const char* the serialized string
          */
         const char* get_json_connected_state() const {return json_connected_state.c_str(); }
-        const std::string& get_json_current_settings() const {return json_current_settings; }
-        void update_json_current_settings(std::string current) {json_current_settings = current; }
-        void update_json_current_settings() { serialize(json_current_settings); }
+        void update_json_connected_state();
     private:
         Midi2usbhub();
         Preset_manager preset_manager;

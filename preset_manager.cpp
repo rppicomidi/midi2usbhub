@@ -199,9 +199,7 @@ bool rppicomidi::Preset_manager::load_preset(std::string preset_name)
     int error_code = load_settings_string(preset_name.c_str(), &raw_preset_string);
     bool result = false;
     if (error_code > 0) {
-        Midi2usbhub::instance().update_json_current_settings(std::string(raw_preset_string));
-        delete[] raw_preset_string;
-        if (Midi2usbhub::instance().deserialize(Midi2usbhub::instance().get_json_current_settings())) {
+        if (Midi2usbhub::instance().deserialize(std::string(raw_preset_string))) {
             if (update_current_preset(preset_name)) {
                 printf("load preset %s successful\r\n", preset_name.c_str());
                 result = true;
@@ -209,8 +207,9 @@ bool rppicomidi::Preset_manager::load_preset(std::string preset_name)
         }
         else {
             printf("error deserilizating the preset\r\n");
-            Midi2usbhub::instance().update_json_current_settings();
         }        
+        delete[] raw_preset_string;
+        Midi2usbhub::instance().update_json_connected_state();
     }
     else {
         printf("error %s loading settings %s\r\n", pico_errmsg(error_code), preset_name.c_str());

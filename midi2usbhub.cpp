@@ -43,7 +43,8 @@
 #include "lwip/apps/fs.h"
 #include "main_lwipopts.h"
 #endif
-void rppicomidi::Midi2usbhub::serialize(std::string &serialized_string)
+
+JSON_Value* rppicomidi::Midi2usbhub::serialize_to_json()
 {
     JSON_Value *root_value = json_value_init_object();
     JSON_Object *root_object = json_value_get_object(root_value);
@@ -79,7 +80,11 @@ void rppicomidi::Midi2usbhub::serialize(std::string &serialized_string)
         json_object_set_value(routing_object, midi_in->nickname.c_str(), json_array_get_wrapping_value(routing_array));
     }
     json_object_set_value(root_object, "routing", routing_value);
-
+    return root_value;
+}
+void rppicomidi::Midi2usbhub::serialize(std::string &serialized_string)
+{
+    JSON_Value *root_value = serialize_to_json();
     auto ser = json_serialize_to_string(root_value);
     serialized_string = std::string(ser);
     json_free_serialized_string(ser);
@@ -196,6 +201,7 @@ int rppicomidi::Midi2usbhub::connect(const std::string& from_nickname, const std
             for (auto out_port : midi_out_port_list) {
                 if (out_port->nickname == to_nickname) {
                     in_port->sends_data_to_list.push_back(out_port);
+                    update_json_connected_state();
                     return 0;
                 }
             }
@@ -212,6 +218,7 @@ int rppicomidi::Midi2usbhub::disconnect(const std::string& from_nickname, const 
             for (auto it = in_port->sends_data_to_list.begin(); it != in_port->sends_data_to_list.end();) {
                 if ((*it)->nickname == to_nickname) {
                     in_port->sends_data_to_list.erase(it);
+                    update_json_connected_state();
                     return 0;
                 }
                 else {
@@ -229,6 +236,7 @@ void rppicomidi::Midi2usbhub::reset()
     for (auto &in_port :midi_in_port_list) {
         in_port->sends_data_to_list.clear();
     }
+    update_json_connected_state();
 }
 
 int rppicomidi::Midi2usbhub::rename(const std::string& old_nickname, const std::string& new_nickname)
@@ -236,23 +244,25 @@ int rppicomidi::Midi2usbhub::rename(const std::string& old_nickname, const std::
     // make sure the new nickname is not already in use
     for (auto midi_in : midi_in_port_list) {
         if (midi_in->nickname == new_nickname) {
-            return 0;
+            return -1;
         }
     }
     for (auto midi_out : midi_out_port_list) {
         if (midi_out->nickname == new_nickname) {
-            return 0;
+            return -1;
         }
     }
     for (auto &midi_in : midi_in_port_list) {
         if (midi_in->nickname == old_nickname) {
             midi_in->nickname = new_nickname;
+            update_json_connected_state();
             return 1;
         }
     }
     for (auto &midi_out : midi_out_port_list) {
         if (midi_out->nickname == old_nickname) {
             midi_out->nickname = new_nickname;
+            update_json_connected_state();
             return 2;
         }
     }
@@ -491,13 +501,6 @@ int fs_open_custom(struct fs_file *file, const char *name)
         make_ajax_response_file_data(file, OK_200, rppicomidi::Midi2usbhub::instance().get_json_connected_state());
         result = 1;
     }
-    else {
-        url = "/current_settings.json";
-        if (strncmp(url, name, strlen(url)) == 0) {
-            make_ajax_response_file_data(file, OK_200, rppicomidi::Midi2usbhub::instance().get_json_current_settings().c_str());
-            result = 1;
-        }
-    }
 /*    
     else {
         url = "/ledStatePost.json";
@@ -563,20 +566,31 @@ void get_info_from_default_nickname(std::string nickname, uint16_t &vid, uint16_
 
 void rppicomidi::Midi2usbhub::update_json_connected_state()
 {
-    JSON_Value *root_value = json_value_init_object();
+    JSON_Value *root_value = serialize_to_json();
     JSON_Object *root_object = json_value_get_object(root_value);    
-    for (size_t addr = 1; addr <= CFG_TUH_DEVICE_MAX + 1; addr++) {
+    JSON_Value *attached_value = json_value_init_object();
+    JSON_Object *attached_object = json_value_get_object(attached_value);
+    for (size_t addr = 1; addr <= uart_devaddr; addr++) {
         auto dev = Midi2usbhub::instance().get_attached_device(addr);
         char usbid[10];
         if (dev && dev->configured) {
             snprintf(usbid, sizeof(usbid), "%04x-%04x", dev->vid, dev->pid);
-            json_object_set_string(root_object, usbid, dev->product_name.c_str());
+            json_object_set_string(attached_object, usbid, dev->product_name.c_str());
         }
     }
+
+    json_object_set_value(root_object, "attached", attached_value);
+    json_object_set_string(root_object, "curpre", preset_manager.get_current_preset_name());
+    // TODO: add "allpre" list of all preset names object
     auto ser = json_serialize_to_string(root_value);
+    // temporarily disable wifi interrupts to prevent accessing
+    // json_connected_state whilst it might be changing
+    irq_set_enabled(IO_IRQ_BANK0, false);
     json_connected_state = std::string(ser);
+    irq_set_enabled(IO_IRQ_BANK0, true);
     json_free_serialized_string(ser);
     json_value_free(root_value);
+    //printf("\r\n%s\r\n",json_connected_state.c_str());
 }
 
 //--------------------------------------------------------------------+
@@ -740,6 +754,7 @@ void rppicomidi::Midi2usbhub::tuh_midi_unmount_cb(uint8_t dev_addr, uint8_t)
     attached_devices[dev_addr].pid = 0;
     attached_devices[dev_addr].rx_cables = 0;
     attached_devices[dev_addr].tx_cables = 0;
+    update_json_connected_state();
 }
 
 void tuh_midi_umount_cb(uint8_t dev_addr, uint8_t instance)

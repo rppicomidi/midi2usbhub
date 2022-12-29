@@ -67,6 +67,7 @@ public:
      */
     void get_current_preset_name(std::string& preset_name) { preset_name = current_preset_name; }
 
+    const char* get_current_preset_name() { return current_preset_name.c_str(); }
     /**
      * @brief Copy all presets to USB flash drive
      * 

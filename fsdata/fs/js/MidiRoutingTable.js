@@ -1,7 +1,7 @@
 class MidiRoutingTable {
-    constructor(jsonDevices, jsonPreset) {
-        this.devices = JSON.parse(jsonDevices);
-        this.preset = JSON.parse(jsonPreset);
+    constructor(jsonState) {
+        this.jsonState = jsonState;
+        this.state = JSON.parse(jsonState);
     }
     // need an insert column header function
     insertHeader45(row, text) {
@@ -18,36 +18,52 @@ class MidiRoutingTable {
 
     rebuildHeaderRow() {
         let headerRow = document.createElement('tr');
+        headerRow.setAttribute('id', 'routing-to');
 
         let oldheaderRow = document.querySelector('#routing-to');
         let firstTh = document.importNode(document.querySelector('#routing-from-to'), true);
         headerRow.appendChild(firstTh);
-        for (let idto in this.preset.to) {
-            this.insertHeader45(headerRow, this.preset.to[idto]);
+        for (let idto in this.state.to) {
+            if (this.state.to.hasOwnProperty(idto)) {
+                for (let dev in this.state.attached) {
+                    if (this.state.attached.hasOwnProperty(dev) && idto.includes(dev)) {
+                        this.insertHeader45(headerRow, this.state.to[idto]);
+                    }
+                }
+            }
         }
         oldheaderRow.parentElement.replaceChild(headerRow, oldheaderRow);
     }
 
     rebuildRoutingRows() {
         let newTbody = document.createElement('tbody');
-        let ncols = Object.keys(this.preset.to).length;
-        for (let idfrom in this.preset.from) {
-            let newRow = newTbody.insertRow(-1);
-            let newFrom = document.createElement('th');
-            newFrom.className = 'row-header';
-            let newText = document.createTextNode(this.preset.from[idfrom]);
-            newFrom.appendChild(newText);
-            newRow.append(newFrom);
-            for (let idto in this.preset.to) {
-                let newCheckBox = document.createElement('input');
-                newCheckBox.type = 'checkbox';
-                for (let idroute in this.preset.routing) {
-                    if (idroute === this.preset.from[idfrom]) {
-                        newCheckBox.checked = (this.preset.routing[idroute].indexOf(this.preset.to[idto]) > -1);
+        newTbody.setAttribute('id','routes');
+        let ncols = Object.keys(this.state.to).length;
+        for (let idfrom in this.state.from) {
+            if (this.state.from.hasOwnProperty(idfrom)) {
+                for (let dev in this.state.attached) {
+                    if (this.state.attached.hasOwnProperty(dev) && idfrom.includes(dev)) {
+                        let newRow = newTbody.insertRow(-1);
+                        let newFrom = document.createElement('th');
+                        newFrom.className = 'row-header';
+                        let newText = document.createTextNode(this.state.from[idfrom]);
+                        newFrom.appendChild(newText);
+                        newRow.append(newFrom);
+                        for (let idto in this.state.to) {
+                            if (this.state.to.hasOwnProperty(idto)) {
+                                let newCheckBox = document.createElement('input');
+                                newCheckBox.type = 'checkbox';
+                                for (let idroute in this.state.routing) {
+                                    if (this.state.routing.hasOwnProperty(idroute) && idroute === this.state.from[idfrom]) {
+                                        newCheckBox.checked = (this.state.routing[idroute].indexOf(this.state.to[idto]) > -1);
+                                    }
+                                }
+                                let newCell = newRow.insertCell(-1);
+                                newCell.appendChild(newCheckBox);
+                            }
+                        }
                     }
                 }
-                let newCell = newRow.insertCell(-1);
-                newCell.appendChild(newCheckBox);
             }
         }
         let oldTbody = document.querySelector('#routes');
@@ -57,5 +73,10 @@ class MidiRoutingTable {
     init() {
         this.rebuildHeaderRow();
         this.rebuildRoutingRows();
+    }
+
+    reinit(jsonState) {
+        this.state = JSON.parse(jsonState);
+        this.init();
     }
 }
