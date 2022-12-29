@@ -36,6 +36,7 @@
 #include "embedded_cli.h"
 #include "parson.h"
 #include "preset_manager.h"
+#include "pico_w_connection_manager.h"
 #include "midi2usbhub_cli.h"
 namespace rppicomidi
 {
@@ -122,7 +123,9 @@ namespace rppicomidi
          * @param serialized_settings
          */
         void serialize(std::string &serialized_settings);
-        bool deserialize(std::string &serialized_settings);
+        bool deserialize(const std::string &serialized_settings);
+
+        void update_json_connected_state();
         /**
          * @brief connect the MIDI stream from the device and port from_nickname
          * to the device and port to_nickname
@@ -171,13 +174,26 @@ namespace rppicomidi
          */
         void task();
 
+#ifdef RPPICOMIDI_PICO_W
+        void get_connected();
+#endif
         Midi_device_info* get_attached_device(size_t addr) { if (addr < 1 || addr > CFG_TUH_DEVICE_MAX) return nullptr; return &attached_devices[addr]; }
         const std::vector<Midi_out_port *>& get_midi_out_port_list() {return midi_out_port_list; }
         const std::vector<Midi_in_port *>& get_midi_in_port_list() {return midi_in_port_list; }
+
+        /**
+         * @brief Get the connected state in JSON serialized string format
+         * 
+         * @return const char* the serialized string
+         */
+        const char* get_json_connected_state() const {return json_connected_state.c_str(); }
+        const std::string& get_json_current_settings() const {return json_current_settings; }
+        void update_json_current_settings(std::string current) {json_current_settings = current; }
+        void update_json_current_settings() { serialize(json_current_settings); }
     private:
         Midi2usbhub();
         Preset_manager preset_manager;
-
+        Pico_w_connection_manager wifi;
         static void langid_cb(tuh_xfer_t *xfer);
         static void prod_str_cb(tuh_xfer_t *xfer);
 
@@ -205,5 +221,7 @@ namespace rppicomidi
         Midi_in_port uart_midi_in_port;
         Midi_out_port uart_midi_out_port;
         Midi2usbhub_cli cli;
+        std::string json_connected_state;
+        std::string json_current_settings;
     };
 }

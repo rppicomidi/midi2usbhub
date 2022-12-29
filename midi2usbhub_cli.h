@@ -26,6 +26,7 @@
 #include <cstdint>
 #include "embedded_cli.h"
 #include "preset_manager.h"
+#include "pico_w_connection_manager.h"
 namespace rppicomidi
 {
 class Midi2usbhub_cli
@@ -35,7 +36,7 @@ public:
     Midi2usbhub_cli(Midi2usbhub_cli const&) = delete;
     void operator=(Midi2usbhub_cli const&) = delete;
     ~Midi2usbhub_cli()=default;
-    Midi2usbhub_cli(Preset_manager* pm);
+    Midi2usbhub_cli(Preset_manager* pm, Pico_w_connection_manager* cm);
     void task();
     static uint16_t get_num_commands() { return 4; }
 private:

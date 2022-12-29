@@ -27,8 +27,9 @@
 #include "pico_lfs_cli.h"
 #include "pico_fatfs_cli.h"
 #include "preset_manager_cli.h"
+#include "pico_w_connection_manager_cli.h"
 #include "midi2usbhub.h"
-rppicomidi::Midi2usbhub_cli::Midi2usbhub_cli(Preset_manager* pm)
+rppicomidi::Midi2usbhub_cli::Midi2usbhub_cli(Preset_manager* pm, Pico_w_connection_manager* cm)
 {
     // Initialize the CLI
     EmbeddedCliConfig cli_config = {
@@ -38,7 +39,8 @@ rppicomidi::Midi2usbhub_cli::Midi2usbhub_cli(Preset_manager* pm)
         .maxBindingCount = static_cast<uint16_t>(6 +
                             Preset_manager_cli::get_num_commands() +
                             Pico_lfs_cli::get_num_commands() +
-                            Pico_fatfs_cli::get_num_commands()),
+                            Pico_fatfs_cli::get_num_commands() +
+                            Pico_w_connection_manager_cli::get_num_commands()),
         .cliBuffer = NULL,
         .cliBufferSize = 0,
         .enableAutoComplete = true,
@@ -79,6 +81,8 @@ rppicomidi::Midi2usbhub_cli::Midi2usbhub_cli(Preset_manager* pm)
     Preset_manager_cli pm_cli(cli, pm);
     Pico_lfs_cli lfs_cli(cli);
     Pico_fatfs_cli fatfs_cli(cli);
+    Pico_w_connection_manager_cli connection_manager_cli(cli);
+    connection_manager_cli.setup_cli(cm);
 }
 
 void rppicomidi::Midi2usbhub_cli::task()

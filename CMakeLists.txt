@@ -41,9 +41,34 @@ littlefs-lib msc_fatfs rp2040_rtc)
 if(DEFINED PICO_BOARD)
 if(${PICO_BOARD} MATCHES "pico_w")
 message("board is pico_w")
-# add additional compile and link options
+set(FS_DATA_DIR ${CMAKE_CURRENT_LIST_DIR}/fsdata)
+set(MAKE_FS_DATA_SCRIPT ${FS_DATA_DIR}/makefsdata)
+
+add_custom_command(
+    OUTPUT ${FS_DATA_DIR}/custom_fsdata.c
+    COMMAND ${MAKE_FS_DATA_SCRIPT}
+    DEPENDS 
+        ${FS_DATA_DIR}/fs/index.html
+        ${FS_DATA_DIR}/fs/404.html
+        ${FS_DATA_DIR}/fs/429.html
+        ${FS_DATA_DIR}/fs/css/style.css
+        ${FS_DATA_DIR}/fs/css/siimple.min.css
+        ${FS_DATA_DIR}/fs/img/favicon.ico
+    WORKING_DIRECTORY ${FS_DATA_DIR}
+)
+add_custom_target(run ALL
+    DEPENDS ${FS_DATA_DIR}/custom_fsdata.c)
+set_property(SOURCE ${PICO_SDK_PATH}/lib/lwip/src/apps/http/fs.c APPEND PROPERTY OBJECT_DEPENDS ${FS_DATA_DIR}/custom_fsdata.c)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/lib/pico-w-connection-manager)
 target_compile_options(${target_proj} PRIVATE -DRPPICOMIDI_PICO_W)
-target_link_libraries(${target_proj} pico_cyw43_arch_none)
+target_link_libraries(${target_proj} pico_w_connection_manager pico_lwip_http)
+target_include_directories(${target_proj} PRIVATE
+ ${CMAKE_CURRENT_LIST_DIR}/lib/pico-c-utilities/
+)
+target_sources(${target_proj} PRIVATE
+ pico_w_connection_manager_cli.cpp
+ ${CMAKE_CURRENT_LIST_DIR}/lib/pico-c-utilities/getsn.c
+)
 set(RPPICOMIDI_PICO_W 1)
 else()
 message("board is pico")

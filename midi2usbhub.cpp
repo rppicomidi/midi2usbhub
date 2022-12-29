@@ -38,7 +38,10 @@
 #include "preset_manager.h"
 #include "diskio.h"
 #ifdef RPPICOMIDI_PICO_W
+#include "lwip/apps/httpd.h"
 #include "pico/cyw43_arch.h"
+#include "lwip/apps/fs.h"
+#include "main_lwipopts.h"
 #endif
 void rppicomidi::Midi2usbhub::serialize(std::string &serialized_string)
 {
@@ -83,7 +86,7 @@ void rppicomidi::Midi2usbhub::serialize(std::string &serialized_string)
     json_value_free(root_value);
 }
 
-bool rppicomidi::Midi2usbhub::deserialize(std::string &serialized_string)
+bool rppicomidi::Midi2usbhub::deserialize(const std::string &serialized_string)
 {
     JSON_Value* root_value = json_parse_string(serialized_string.c_str());
     if (root_value == nullptr) {
@@ -327,7 +330,7 @@ void rppicomidi::Midi2usbhub::poll_midi_uart_rx()
     }
 }
 
-rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager}
+rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager, &wifi}
 {
     bi_decl(bi_program_description("Provide a USB host interface for Serial Port MIDI."));
     bi_decl(bi_1pin_with_name(LED_GPIO, "On-board LED"));
@@ -432,19 +435,106 @@ void rppicomidi::Midi2usbhub::task()
     flush_usb_tx();
     poll_usb_rx();
     midi_uart_drain_tx_buffer(midi_uart_instance);
-
+#ifdef RPPICOMIDI_PICO_W
+    wifi.task();
+#endif
     cli.task();
 }
+
+void rppicomidi::Midi2usbhub::get_connected()
+{
+    bool connected = false;
+    // If successfully loaded settings, attempt to autoconnect now.
+    if (wifi.load_settings()) {
+        wifi.autoconnect();
+    }
+    while (!connected) {
+        connected = wifi.get_state() == wifi.CONNECTED;
+        task();
+    }
+}
+
+static void make_ajax_response_file_data(struct fs_file *file, const char* result, const char* content)
+{
+#if 1
+    static char data[1024];
+    size_t content_len = strlen(content);
+    file->len = snprintf(data, sizeof(data), "HTTP/1.0 %s\r\nContent-Type: application/json;charset=UTF-8\r\nContent-Length: %d+\r\n\r\n%s", result, content_len, content);
+    if ((size_t)file->len >= sizeof(data)) {
+        printf("make_ajax_response_file_data: response truncated\r\n");
+    }
+#else
+    // don't allocate memory in an irq
+    std::string content_len = std::to_string(strlen(content) + 1);
+    std::string file_str = std::string("HTTP/1.0 ")+std::string(result) +
+            std::string("\nContent-Type: application/json\nContent-Length: ") +
+                content_len+std::string("\n\n") + std::string(content);
+    file->len = file_str.length();
+    char* data = new char[file->len];
+    strncpy(data, file_str.c_str(), file->len);
+    data[file->len] = '\0';
+#endif
+    file->data = data;
+    file->index = file->len;
+    file->flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_CUSTOM;
+}
+
+// Required by LWIP_HTTPD_CUSTOM_FILES
+int fs_open_custom(struct fs_file *file, const char *name)
+{
+    cyw43_arch_lwip_begin();
+    int result = 0;
+    const char* OK_200 = "200 OK";
+    const char* Created_201 = "201 Created";
+    const char* url = "/connected_state.json";
+    if (strncmp(url, name, strlen(url)) == 0) {
+        make_ajax_response_file_data(file, OK_200, rppicomidi::Midi2usbhub::instance().get_json_connected_state());
+        result = 1;
+    }
+    else {
+        url = "/current_settings.json";
+        if (strncmp(url, name, strlen(url)) == 0) {
+            make_ajax_response_file_data(file, OK_200, rppicomidi::Midi2usbhub::instance().get_json_current_settings().c_str());
+            result = 1;
+        }
+    }
+/*    
+    else {
+        url = "/ledStatePost.json";
+        if (strncmp(url, name, strlen(url)) == 0) {
+            //printf("got request for ledStatePost\r\n");
+            make_ajax_response_file_data(file, Created_201, get_led_state_json());
+            result = 1;
+        }
+    }
+    */
+    cyw43_arch_lwip_end();
+    return result;
+}
+
+void fs_close_custom(struct fs_file *file)
+{
+    #if 1
+    LWIP_UNUSED_ARG(file);
+    #else
+    cyw43_arch_lwip_begin();
+    if (file->data) {
+        delete[] file->data;
+        file->data = NULL;
+    }
+    cyw43_arch_lwip_end();
+    #endif
+}
+
+
 
 // Main loop
 int main()
 {
     rppicomidi::Midi2usbhub &instance = rppicomidi::Midi2usbhub::instance();
 #ifdef RPPICOMIDI_PICO_W
-    if (cyw43_arch_init()) {
-        printf("WiFi init failed");
-        return -1;
-    }
+    instance.get_connected();
+    httpd_init();
 #endif
     while (1) {
         instance.task();
@@ -469,6 +559,24 @@ void get_info_from_default_nickname(std::string nickname, uint16_t &vid, uint16_
     pid = std::stoi(nickname.substr(5, 4), 0, 16);
     cable = std::stoi(nickname.substr(10, std::string::npos));
     is_from = nickname.substr(9, 1) == "F";
+}
+
+void rppicomidi::Midi2usbhub::update_json_connected_state()
+{
+    JSON_Value *root_value = json_value_init_object();
+    JSON_Object *root_object = json_value_get_object(root_value);    
+    for (size_t addr = 1; addr <= CFG_TUH_DEVICE_MAX + 1; addr++) {
+        auto dev = Midi2usbhub::instance().get_attached_device(addr);
+        char usbid[10];
+        if (dev && dev->configured) {
+            snprintf(usbid, sizeof(usbid), "%04x-%04x", dev->vid, dev->pid);
+            json_object_set_string(root_object, usbid, dev->product_name.c_str());
+        }
+    }
+    auto ser = json_serialize_to_string(root_value);
+    json_connected_state = std::string(ser);
+    json_free_serialized_string(ser);
+    json_value_free(root_value);
 }
 
 //--------------------------------------------------------------------+
@@ -515,6 +623,7 @@ void rppicomidi::Midi2usbhub::prod_str_cb(tuh_xfer_t *xfer)
             printf("current preset load failed.\r\n");
         }
         devinfo->configured = true;
+        instance().update_json_connected_state();
     }
 }
 

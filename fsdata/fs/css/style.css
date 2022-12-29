@@ -1,0 +1,102 @@
+th {
+    text-align: left;
+}
+table >tbody >tr >td {
+ outline: 0;
+ position: relative;
+}
+
+table >tbody >tr >td .button-toolbar {
+ display: none;
+ border-top: none;
+ position: absolute;
+ top: 100%;
+ left: 50%;
+ left: -2px;
+ width: calc(100% + 4px);
+ z-index: 2;
+ text-align: center;
+}
+
+table >tbody >tr >td .button-toolbar .button-wrapper {
+ padding: 8px;
+ background-color: #FFF;
+ border: 1px solid rgb(105,105,105);
+ border-top: none;
+}
+
+table >tbody >tr >td.in-editing {
+    background-color: #FFF;
+    border: 2px solid rgb(105,105,105);   
+}
+
+table >tbody >tr >td.in-editing  .button-toolbar {
+ display: flex;
+ justify-content: center;
+}
+
+table.table-striped >tbody>tr:nth-child(odd) {
+    background-color: #f2f2f2;
+}
+
+.table-header-rotated {
+    table-layout: auto;
+    width: 50%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.table-header-rotated th.row-header {
+    width: auto;
+    border-bottom: 1px solid #dddddd;
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+}
+
+.table-header-rotated td {
+    width: 40px;
+    border-top: 1px solid #dddddd;
+    border-left: 1px solid #dddddd;
+    border-right: 1px solid #dddddd;
+    vertical-align: middle;
+    text-align: center;
+}
+
+.table-header-rotated th.rotate-45 {
+    height: 100px;
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    position: relative;
+    vertical-align: bottom;
+    padding: 0;
+}
+
+.table-header-rotated th.rotate-45 > div {
+    position: relative;
+    top: 0px;
+    left: 50px;
+    height: 100%;
+    -ms-transform: skew(-45deg,0deg);
+    -moz-transform: skew(-45deg,0deg);
+    -webkit-transform: skew(-45deg,0deg);
+    -o-transform: skew(-45deg,0deg);
+    transform: skew(-45deg,0deg);
+    overflow: hidden;
+    border-right: 1px solid #dddddd;
+}
+
+.table-header-rotated th.rotate-45 span {
+    -ms-transform: skew(45deg,0deg) rotate(315deg);
+    -moz-transform: skew(45deg,0deg) rotate(315deg);
+    -webkit-transform: skew(45deg,0deg) rotate(315deg);
+    -o-transform: skew(45deg,0deg) rotate(315deg);
+    transform: skew(45deg,0deg) rotate(315deg);
+    position: absolute;
+    bottom: 40px;
+    left: -25px;
+    display: inline-block;
+    width: 106px;
+    text-align: left;
+}
