@@ -1,7 +1,8 @@
 class MidiRoutingTable {
-    constructor(jsonState) {
+    constructor(jsonState, stateManager) {
         this.jsonState = jsonState;
         this.state = JSON.parse(jsonState);
+        this.stateManager = stateManager;
     }
     // need an insert column header function
     insertHeader45(row, text) {
@@ -56,6 +57,18 @@ class MidiRoutingTable {
                                 for (let idroute in this.state.routing) {
                                     if (this.state.routing.hasOwnProperty(idroute) && idroute === this.state.from[idfrom]) {
                                         newCheckBox.checked = (this.state.routing[idroute].indexOf(this.state.to[idto]) > -1);
+                                        newCheckBox.setAttribute('route-from', this.state.from[idfrom]);
+                                        newCheckBox.setAttribute('route-to', this.state.to[idto]);
+                                        newCheckBox.addEventListener('click', (ev) => {
+                                            let args = [ev.target.getAttribute('route-from'), ev.target.getAttribute('route-to')];
+                                            //console.log(ev.target.getAttribute('route-from')+ "->"+ev.target.getAttribute('route-to')+" "+ev.target.checked);
+                                            if (ev.target.checked) {
+                                                this.stateManager.sendCommand('con', args);
+                                            }
+                                            else {
+                                                this.stateManager.sendCommand('dis', args);
+                                            }
+                                        });
                                     }
                                 }
                                 let newCell = newRow.insertCell(-1);
@@ -78,5 +91,9 @@ class MidiRoutingTable {
     reinit(jsonState) {
         this.state = JSON.parse(jsonState);
         this.init();
+    }
+
+    postCommand(commandObject) {
+        
     }
 }

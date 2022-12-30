@@ -340,16 +340,27 @@ void rppicomidi::Midi2usbhub::poll_midi_uart_rx()
     }
 }
 
-rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager, &wifi}
+rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager, &wifi}, current_connection{nullptr}
 {
     bi_decl(bi_program_description("Provide a USB host interface for Serial Port MIDI."));
     bi_decl(bi_1pin_with_name(LED_GPIO, "On-board LED"));
     bi_decl(bi_2pins_with_names(MIDI_UART_TX_GPIO, "MIDI UART TX", MIDI_UART_RX_GPIO, "MIDI UART RX"));
-
     board_init();
     printf("Pico MIDI Host to MIDI UART Adapter\r\n");
     tusb_init();
-
+    // Initialize the POST command list
+    post_cmd_list.push_back({{2,{'c','o','n','\0'},{'\0'}, {'\0'}}, static_connect_cmd}); // connect from_nickname to_nickname
+    post_cmd_list.push_back({{2,{'d','i','s','\0'},{'\0'}, {'\0'}}, static_disconnect_cmd}); // disconnect from_nickname to_nickname
+    post_cmd_list.push_back({{2,{'r','e','n','\0'},{'\0'}, {'\0'}}, static_rename_cmd}); // rename old_nickname new_nickname
+#if 0    
+    post_cmd_list.push_back({2,{'d','i','s','\0'},{'\0'}, {'\0'}}, static_disconnect_cmd); // disconnect from_nickname to_nickname
+    post_cmd_list.push_back({{2,{'r','e','n','\0'},{'\0'}, {'\0'}}, static_rename_cmd}); // rename old_nickname new_nickname
+    post_cmd_list.push_back({1,"sav","",""}); // save preset_name
+    post_cmd_list.push_back({1,"lod","",""}); // load preset_name
+    post_cmd_list.push_back({1,"del","",""}); // delete preset_name
+    post_cmd_list.push_back({1,"bak","",""}); // backup [preset_name] to external flash
+    post_cmd_list.push_back({1,"res","",""}); // restore preset_name from external flash
+#endif
     // Map the pins to functions
     gpio_init(LED_GPIO);
     gpio_set_dir(LED_GPIO, GPIO_OUT);
@@ -447,6 +458,7 @@ void rppicomidi::Midi2usbhub::task()
     midi_uart_drain_tx_buffer(midi_uart_instance);
 #ifdef RPPICOMIDI_PICO_W
     wifi.task();
+    process_pending_cmds();
 #endif
     cli.task();
 }
@@ -467,7 +479,7 @@ void rppicomidi::Midi2usbhub::get_connected()
 static void make_ajax_response_file_data(struct fs_file *file, const char* result, const char* content)
 {
 #if 1
-    static char data[1024];
+    static char data[2048];
     size_t content_len = strlen(content);
     file->len = snprintf(data, sizeof(data), "HTTP/1.0 %s\r\nContent-Type: application/json;charset=UTF-8\r\nContent-Length: %d+\r\n\r\n%s", result, content_len, content);
     if ((size_t)file->len >= sizeof(data)) {
@@ -501,35 +513,139 @@ int fs_open_custom(struct fs_file *file, const char *name)
         make_ajax_response_file_data(file, OK_200, rppicomidi::Midi2usbhub::instance().get_json_connected_state());
         result = 1;
     }
-/*    
     else {
-        url = "/ledStatePost.json";
+        url = "/post_cmd.json";
+        static const char* json_result_ok = "{\"result\":\"OK\"}";
         if (strncmp(url, name, strlen(url)) == 0) {
-            //printf("got request for ledStatePost\r\n");
-            make_ajax_response_file_data(file, Created_201, get_led_state_json());
+            printf("response = %s\r\n", json_result_ok);
+            make_ajax_response_file_data(file, Created_201, json_result_ok);
             result = 1;
         }
     }
-    */
     cyw43_arch_lwip_end();
     return result;
 }
 
 void fs_close_custom(struct fs_file *file)
 {
-    #if 1
+    // Nothing to do here
     LWIP_UNUSED_ARG(file);
-    #else
-    cyw43_arch_lwip_begin();
-    if (file->data) {
-        delete[] file->data;
-        file->data = NULL;
-    }
-    cyw43_arch_lwip_end();
-    #endif
 }
 
+err_t rppicomidi::Midi2usbhub::post_begin(void *connection, const char *uri, const char *http_request, u16_t http_request_len,
+                            int content_len, char *response_uri, u16_t response_uri_len, u8_t *post_auto_wnd)
+{
+    LWIP_UNUSED_ARG(http_request);
+    LWIP_UNUSED_ARG(http_request_len);
+    LWIP_UNUSED_ARG(content_len);
+    //printf("Got POST message %u bytes content %d bytes\r\n", http_request_len, content_len);
+    //hexdump(http_request, http_request_len);
+    if (!memcmp(uri, "/post_cmd.txt", strlen("/post_cmd.txt"))) {
+        if (current_connection != NULL) {
+            last_post_error_connection = connection;
+            snprintf(response_uri, response_uri_len, "/429.html");
+        }
+        else {
+            current_connection = connection;
+            last_post_error_connection = NULL;
+            /* default page is 400 Bad Request */
+            snprintf(response_uri, response_uri_len, "/400.html");
+            /* e.g. for large uploads to slow flash over a fast connection, you should
+                manually update the rx window. That way, a sender can only send a full
+                tcp window at a time. If this is required, set 'post_aut_wnd' to 0.
+                We do not need to throttle upload speed here, so: */
+            *post_auto_wnd = 1;
+            return ERR_OK;
+        }
+    }
+    else {
+        printf("bad POST URI=%s\r\n", uri);
+        last_post_error_connection = connection;
+    }
+    return ERR_VAL;
+}
 
+err_t httpd_post_begin(void *connection, const char *uri, const char *http_request, u16_t http_request_len,
+                            int content_len, char *response_uri, u16_t response_uri_len, u8_t *post_auto_wnd)
+{
+    return rppicomidi::Midi2usbhub::instance().post_begin(connection, uri, http_request, http_request_len, content_len, response_uri, response_uri_len, post_auto_wnd);
+}
+
+err_t rppicomidi::Midi2usbhub::post_receive_data(void *connection, struct pbuf *p)
+{
+    cyw43_arch_lwip_begin();
+    err_t result = ERR_VAL;
+    if (connection == current_connection) {
+        // TODO pass the pbuf to the main loop for further processing
+        char data[p->tot_len];
+        char* buffer = static_cast<char*>(pbuf_get_contiguous(p, data, p->tot_len, p->tot_len, 0));
+        // the buffer must contain data that fits in a Post_command structure
+        if (buffer != NULL && p->tot_len < (max_arg_len * max_args)*2+cmd_len) {
+            // parse out the command and the arguments
+            char temp[(max_arg_len * max_args)*2+cmd_len];
+            Post_cmd cmd;
+            memcpy(temp, buffer, p->tot_len);
+            temp[p->tot_len] = '\0';
+            char* ptr = strtok(temp, "?");
+            if (ptr && strlen(ptr) == cmd_len-1u) {
+                strcpy(cmd.cmd, ptr);
+                cmd.nargs = 0;
+                ptr = strtok(NULL, "?");
+                if (ptr && strlen(ptr) < max_arg_len) {
+                    cmd.nargs = 1;
+                    strcpy(cmd.arg0, ptr);
+                    ptr = strtok(NULL, "?");
+                    if (ptr && strlen(ptr) < max_arg_len) {
+                        cmd.nargs = 2;
+                        strcpy(cmd.arg1, ptr);
+                        ptr = strtok(NULL, "?");
+                        if (ptr != NULL) {
+                            // oops, no command should have 3 arguments make sure push_cmd fails
+                            cmd.cmd[0] = '\0';
+                        }
+                    }
+                }
+                if (push_cmd(cmd)) {
+                    // command can be dispatched and there is space in the pending command list
+                    result = ERR_OK;
+                }
+            }
+        }
+    }
+    if (result != ERR_OK) {
+        printf("failed to process the POST data\r\n");
+        last_post_error_connection = connection;
+    }
+    pbuf_free(p);
+    cyw43_arch_lwip_end();
+    return result;
+
+}
+err_t httpd_post_receive_data (void *connection, struct pbuf *p)
+{
+    return rppicomidi::Midi2usbhub::instance().post_receive_data(connection, p);
+}
+
+void rppicomidi::Midi2usbhub::post_finished(void *connection, char *response_uri, u16_t response_uri_len)
+{
+    if (connection == current_connection) {
+        if (last_post_error_connection == NULL) {
+            snprintf(response_uri, response_uri_len, "/post_cmd.json");
+        }
+        else {
+            // The code should have a respose file name in the response_uri, except that LwIP trashed it
+            // Put it back
+            response_uri[0]='/';
+        }
+        current_connection = NULL;
+        last_post_error_connection = NULL;
+    }
+}
+
+void httpd_post_finished (void *connection, char *response_uri, u16_t response_uri_len)
+{
+    rppicomidi::Midi2usbhub::instance().post_finished(connection, response_uri, response_uri_len);
+}
 
 // Main loop
 int main()
@@ -585,14 +701,86 @@ void rppicomidi::Midi2usbhub::update_json_connected_state()
     auto ser = json_serialize_to_string(root_value);
     // temporarily disable wifi interrupts to prevent accessing
     // json_connected_state whilst it might be changing
-    irq_set_enabled(IO_IRQ_BANK0, false);
+    protect_from_lwip();
     json_connected_state = std::string(ser);
-    irq_set_enabled(IO_IRQ_BANK0, true);
+    unprotect_from_lwip();
     json_free_serialized_string(ser);
     json_value_free(root_value);
     //printf("\r\n%s\r\n",json_connected_state.c_str());
 }
 
+bool rppicomidi::Midi2usbhub::static_connect_cmd(Post_cmd& cmd) {
+    bool success = false;
+    if (strncmp("con", cmd.cmd, 3)==0 && cmd.nargs == 2) {
+        success = instance().connect(std::string(cmd.arg0), std::string(cmd.arg1)) == 0;
+    }
+    return success;
+}
+
+bool rppicomidi::Midi2usbhub::static_disconnect_cmd(Post_cmd& cmd) {
+    bool success = false;
+    if (strncmp("dis", cmd.cmd, 3)==0 && cmd.nargs == 2) {
+        success = instance().disconnect(std::string(cmd.arg0), std::string(cmd.arg1)) == 0;
+    }
+    return success;
+}
+
+bool rppicomidi::Midi2usbhub::static_rename_cmd(Post_cmd& cmd) {
+    bool success = false;
+    if (strncmp("ren", cmd.cmd, 3)==0 && cmd.nargs == 2) {
+        success = instance().rename(std::string(cmd.arg0), std::string(cmd.arg1)) == 0;
+    }
+    return success;
+}
+
+bool rppicomidi::Midi2usbhub::is_cmd_valid(const Post_cmd& cmd)
+{
+    for (auto test: post_cmd_list) {
+        if (strncmp(test.cmd.cmd, cmd.cmd, 3) == 0 && test.cmd.nargs == cmd.nargs) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool rppicomidi::Midi2usbhub::push_cmd(Post_cmd& cmd)
+{
+    for (size_t idx = 0; idx < max_pending_cmds; idx++) {
+        if (!pending_cmds[idx].pending) {
+            for (auto test: post_cmd_list) {
+                if (strncmp(test.cmd.cmd, cmd.cmd, 3) == 0 && test.cmd.nargs == cmd.nargs) {
+                    pending_cmds[idx].cmd = test;
+                    pending_cmds[idx].cmd.cmd = cmd;
+                    pending_cmds[idx].pending = true;
+                    return true;
+                }
+            }
+            return false; //invalid command
+        }
+    }
+    return false; // no free commands
+}
+
+bool rppicomidi::Midi2usbhub::free_cmd(size_t idx)
+{
+    if (idx < max_pending_cmds && pending_cmds[idx].pending) {
+        pending_cmds[idx].pending = false;
+        return true;
+    }
+    return false;
+}
+
+void rppicomidi::Midi2usbhub::process_pending_cmds()
+{
+    protect_from_lwip();
+    for (size_t idx = 0; idx < max_pending_cmds; idx++) {
+        if (pending_cmds[idx].pending) {
+            pending_cmds[idx].cmd.fn(pending_cmds[idx].cmd.cmd);
+            free_cmd(idx);
+        }
+    }
+    unprotect_from_lwip();
+}
 //--------------------------------------------------------------------+
 // TinyUSB Callbacks
 //--------------------------------------------------------------------+
@@ -814,4 +1002,5 @@ void tuh_midi_tx_cb(uint8_t dev_addr)
 {
     (void)dev_addr;
 }
+
 

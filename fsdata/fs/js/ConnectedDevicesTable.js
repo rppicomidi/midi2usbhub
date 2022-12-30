@@ -1,7 +1,8 @@
 class ConnectedDevicesTable
 {
-    constructor(jsonState) {
+    constructor(jsonState, stateManager) {
         this.jsonState = jsonState;
+        this.stateManager = stateManager;
         this.state = JSON.parse(jsonState);
         this.maxNickname = 12;
         this.userInputHandler = new UserInputHandler(this.maxNickname);
@@ -103,15 +104,13 @@ class ConnectedDevicesTable
         const oldnickname = td.getAttribute('data-old-name');
         const id = td.getAttribute('data-id');
         console.log(id +':'+oldnickname+'=>'+td.textContent);
+        this.stateManager.sendCommand('ren', [oldnickname, td.textContent]);
     }
 
     inEditing(td) {
         return td.classList.contains('in-editing');
     }
 
-    updatePreset(jsonPreset) {
-
-    }
     createButtonToolbar(td) {
         const toolbar = document.createElement('div');
         toolbar.className = 'button-toolbar';

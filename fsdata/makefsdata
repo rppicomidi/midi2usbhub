@@ -21,6 +21,8 @@ while($file = <FILES>) {
         open(HEADER, "> /tmp/header") || die $!;
         if($file =~ /404/) {
             print(HEADER "HTTP/1.0 404 Not found\r\n");
+        } elsif($file =~ /400/) {
+            print(HEADER "HTTP/1.0 400 Bad Request\r\n");
         } elsif($file =~ /429/) {
             print(HEADER "HTTP/1.0 429 Too Many Requests\r\n");
         } else {

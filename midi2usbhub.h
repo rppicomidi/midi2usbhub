@@ -188,8 +188,48 @@ namespace rppicomidi
          */
         const char* get_json_connected_state() const {return json_connected_state.c_str(); }
         void update_json_connected_state();
+#ifdef RPPICOMIDI_PICO_W
+        err_t post_begin(void *connection, const char *uri, const char *http_request, u16_t http_request_len,
+                            int content_len, char *response_uri, u16_t response_uri_len, u8_t *post_auto_wnd);
+        err_t post_receive_data(void *connection, struct pbuf *p);
+        void post_finished(void *connection, char *response_uri, u16_t response_uri_len);
+        static const size_t cmd_len = 4;
+        static const size_t max_arg_len = 13;
+        static const size_t max_args = 2;
+        static const size_t max_pending_cmds = 10;
+
+        struct Post_cmd {
+            size_t nargs;
+            char cmd[cmd_len];
+            char arg0[max_arg_len];
+            char arg1[max_arg_len];
+        };
+
+        /**
+         * @brief return true if cmd is a valid command
+         * 
+         * @param cmd is the Post_cmd structure under test
+         * @return true if the command can be dispatched, false otherwise
+         */
+        bool is_cmd_valid(const Post_cmd& cmd);
+
+        /**
+         * @brief Add the command to the pending command list
+         * 
+         * @param cmd the command to add
+         * @return true if the command can be dispatched and there is
+         * space in the pending command list; false otherwise
+         * @note only call this from interrupt context
+         */
+        bool push_cmd(Post_cmd& cmd);
+#endif
     private:
         Midi2usbhub();
+        static bool static_connect_cmd(Post_cmd& cmd);
+        static bool static_disconnect_cmd(Post_cmd& cmd);
+        static bool static_rename_cmd(Post_cmd& cmd);
+        void protect_from_lwip() {irq_set_enabled(IO_IRQ_BANK0, false);}
+        void unprotect_from_lwip() {irq_set_enabled(IO_IRQ_BANK0, true);}
         Preset_manager preset_manager;
         Pico_w_connection_manager wifi;
         static void langid_cb(tuh_xfer_t *xfer);
@@ -221,5 +261,34 @@ namespace rppicomidi
         Midi2usbhub_cli cli;
         std::string json_connected_state;
         std::string json_current_settings;
+#ifdef RPPICOMIDI_PICO_W
+
+        /**
+         * @brief Mark a command in the command list as free
+         * 
+         * @param idx the index of the command to mark not pending
+         * @return true if idx is in range and command was originally pending,
+         * false otherwise
+         * @note only call this command after having called protect_from_lwip
+         */
+        bool free_cmd(size_t idx);
+
+        void process_pending_cmds();
+        void* current_connection;
+        struct Post_cmd_dispatch {
+            Post_cmd cmd;
+            bool (*fn)(Post_cmd& cmd);
+        };
+
+        struct Pending_cmd {
+            Pending_cmd() : pending{false} { }
+            Post_cmd_dispatch cmd;
+            bool pending;
+        };
+
+        std::vector<Post_cmd_dispatch> post_cmd_list;
+        Pending_cmd pending_cmds[max_pending_cmds];
+        void* last_post_error_connection;
+#endif
     };
 }

@@ -87,11 +87,7 @@
 #define DHCP_DEBUG                  LWIP_DBG_OFF
 // Webserver app configuration
 #define LWIP_HTTPD                  1
-#define LWIP_HTTPD_CGI              0
-#define LWIP_HTTPD_SSI              0
 #define LWIP_HTTPD_CUSTOM_FILES     1
-// Prevent conflicts with javascript comments
-#define LWIP_HTTPD_SSI_INCLUDE_TAG  0
-#define LWIP_HTTPD_SUPPORT_POST     0
+#define LWIP_HTTPD_SUPPORT_POST     1
 #define HTTPD_FSDATA_FILE           "fsdata/custom_fsdata.c"
 #endif

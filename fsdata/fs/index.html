@@ -3,18 +3,31 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, user-scalable=no">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<link rel="stylesheet" type="text/css" href="css/siimple.min.css">
 		<link rel="stylesheet" type="text/css" href="css/style.css">
 		<link rel="icon" type="image/x-icon" href="img/favicon.ico">
         <script src="js/UserInputHandler.js"></script>
         <script src="js/ConnectedDevicesTable.js"></script>
         <script src="js/MidiRoutingTable.js"></script>
+        <script src="js/StateManager.js"></script>
 		<title>midi2usbhub</title>
 	</head>
 	<body> 
 		<div class="grid main">
-			<h1>usb2midihub</h1>
+			<h1>midi2usbhub</h1>
+        </div>
+        <div class="grid main">
+            <h1>Routing</h1>
+            <table class="table table-striped table-header-rotated">
+                <thead>
+                    <tr id="routing-to">
+                        <th id="routing-from-to"><div>TO &#x2192 <br> <br>  FROM &#x2193</div></th>
+                    </tr>
+                </thead>
+                <tbody id="routes">
+                </tbody>
+            </table>
         </div>
         <div class="grid main">
 			<h1>Connected Devices</h1>
@@ -30,124 +43,13 @@
                 </tbody>
 			</table>
 		</div>
-        <div class="grid main">
-            <h1>Routing</h1>
-            <table class="table table-striped table-header-rotated">
-                <thead>
-                    <tr id="routing-to">
-                        <th id="routing-from-to"><div>TO &#x2192 <br> <br>  FROM &#x2193</div></th>
-                    </tr>
-                </thead>
-                <tbody id="routes">
-                </tbody>
-            </table>
-        </div>
 		<script>
             var constr = '{"from":{"0000-0000F1":"MIDI-IN-A"},"to":{"0000-0000T1":"MIDI-OUT-A"},"routing":{"MIDI-IN-A":[]},"attached":{"0000-0000":"MIDI A"},"curpre":""}';
-            var tbl = new ConnectedDevicesTable(constr);
-            var tblR = new MidiRoutingTable(constr);
+            var stm = new StateManager(constr);
             window.onload = function () {
-                tbl.init();
-                tblR.init();
-                pollMidiHubState.reqMidiHubState();
+                stm.init();
+                stm.reqMidiHubState();
 			};
-			const pollMidiHubState = {
-				reqMidiHubState() {
-					this.req = new XMLHttpRequest();
-					this.req.onload = () => { if (this.req.readyState == this.req.DONE) {
-							let respCode = this.req.status;
-							if (respCode == 200) {
-                                try {
-                                    JSON.parse(this.req.responseText); // will throw SyntaxError if not valid JSON
-								    tbl.reinit(this.req.responseText);
-                                    tblR.reinit(this.req.responseText);
-                                }
-                                catch (error) {
-                                    console.log(error);
-                                }
-							}
-							this.req = undefined;
-							this.setup();
-						}
-					};
-					this.req.onerror = () => {
-						this.req = undefined;
-						this.setup();
-					};
-					this.req.onabort = () => {
-						this.req = undefined;
-					};
-					this.req.open("GET","/connected_state.json", true);
-					this.req.send();
-					this.timeoutId = undefined;
-				},
-				setup() {
-					if (typeof this.timeoutId === 'number') {
-						this.cancel();
-					}
-					this.timeoutId = setTimeout(()=>{ this.reqMidiHubState();}, 1000); // poll the LED state from the server one second from now.
-				},
-				cancel() {
-					if (this.timeoutId != undefined) {
-						clearTimeout(this.timeoutId);
-					}
-					if (this.req != undefined) {
-						this.req.abort();
-					}
-				}
-			};
-
-            /*
-			function ledupdate() {
-				pollLedState.cancel();
-				let req = new XMLHttpRequest();
-				req.open("POST", "/ledStatePost.json", true);
-				req.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
-				req.onload = function() {
-					let state = this.readyState;
-					let respCode = req.status;
-					//console.log("POST req.onload called. readyState="+state+" status="+respCode);
-					if (state == this.DONE) {
-						if (respCode == 201) {
-							let data = JSON.parse(this.responseText);
-							if (data != null) {
-								//console.log("success:"+data.ledState);
-								document.getElementById('ledState').innerHTML=data.ledState;
-								document.getElementById('led-switch').checked = (data.ledState == 'On');
-							}
-						}
-						else {
-							// request was rejected; put the switch back
-							let ls = document.getElementById('ledState').innerHTML;
-							document.getElementById('led-switch').checked = (ls == 'On');
-							if (respCode == 429 || respCode == 404) {
-								//console.log(this.responseText);
-                                // Replace the current page
-                                document.open();
-                                document.write(this.responseText);
-                                document.close();
-							}
-						}
-						pollLedState.setup();
-					}
-				};
-				req.onerror = function() {
-					//console.log("request.error called.");
-					// there was an error. Make sure the switch state and text is in sync
-					let ls = document.getElementById('ledState').innerHTML;
-					document.getElementById('led-switch').checked = (ls == 'On');
-					pollLedState.setup();
-				};
-				req.onabort = function() {
-					// there was an abort. Make sure the switch state and text is in sync
-					let ls = document.getElementById('ledState').innerHTML;
-					document.getElementById('led-switch').checked = (ls == 'On');
-					pollLedState.setup();
-				};
-				var data = document.getElementById('led-switch').checked ? {"ledState":"On"} : {"ledState":"Off"};
-				req.send(JSON.stringify(data));
-			}
-            */
 		</script>
 	</body>
 </html>
