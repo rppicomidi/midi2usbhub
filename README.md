@@ -16,9 +16,22 @@ your presets to a USB Flash drive connected to the USB hub. Presets are stored i
 JSON format.
 
 # Project Status
+### 30-Dec-2022
+- Created the pico-w branch
+- Core web server functions are working. You can rename nicknames for device ports
+and you can modify routing by clicking checkboxes in the routing table.
+- Main Javascript classes are taking shape
+- index.html page still under development
+- preset load and store, preset rename and delete, and preset backup to flash are under development
+- Need to sync time to the web client so that file writes to flash have the correct time stamp
+- To completely get rid of the CLI, will need a display to manage connection to Wi-Fi
+- There are known UI issues around nickname editing.
+- Would like to eliminate dependency on fonts that need to be fetched from the web.
+
 ### 16-Dec-2022
 - Separated the CLI from the Midi2usbhub class and from the Preset_manager class.
 - Preset_manager class is no longer a singleton but instead a member of Midi2usbhub class
+
 ### 1-Dec-2022
 - Added support for Pico-W board LED
 - Added hardware description

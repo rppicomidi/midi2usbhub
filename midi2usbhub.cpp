@@ -352,11 +352,11 @@ rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager, &wifi}, current_co
     post_cmd_list.push_back({{2,{'c','o','n','\0'},{'\0'}, {'\0'}}, static_connect_cmd}); // connect from_nickname to_nickname
     post_cmd_list.push_back({{2,{'d','i','s','\0'},{'\0'}, {'\0'}}, static_disconnect_cmd}); // disconnect from_nickname to_nickname
     post_cmd_list.push_back({{2,{'r','e','n','\0'},{'\0'}, {'\0'}}, static_rename_cmd}); // rename old_nickname new_nickname
+    post_cmd_list.push_back({{0,{'r','s','t','\0'},{'\0'}, {'\0'}}, static_reset_cmd}); // reset routing
+    post_cmd_list.push_back({{1,{'l','o','d','\0'},{'\0'}, {'\0'}}, static_load_cmd}); // load preset
+    post_cmd_list.push_back({{1,{'s','a','v','\0'},{'\0'}, {'\0'}}, static_save_cmd}); // load preset
 #if 0    
-    post_cmd_list.push_back({2,{'d','i','s','\0'},{'\0'}, {'\0'}}, static_disconnect_cmd); // disconnect from_nickname to_nickname
-    post_cmd_list.push_back({{2,{'r','e','n','\0'},{'\0'}, {'\0'}}, static_rename_cmd}); // rename old_nickname new_nickname
     post_cmd_list.push_back({1,"sav","",""}); // save preset_name
-    post_cmd_list.push_back({1,"lod","",""}); // load preset_name
     post_cmd_list.push_back({1,"del","",""}); // delete preset_name
     post_cmd_list.push_back({1,"bak","",""}); // backup [preset_name] to external flash
     post_cmd_list.push_back({1,"res","",""}); // restore preset_name from external flash
@@ -576,7 +576,6 @@ err_t rppicomidi::Midi2usbhub::post_receive_data(void *connection, struct pbuf *
     cyw43_arch_lwip_begin();
     err_t result = ERR_VAL;
     if (connection == current_connection) {
-        // TODO pass the pbuf to the main loop for further processing
         char data[p->tot_len];
         char* buffer = static_cast<char*>(pbuf_get_contiguous(p, data, p->tot_len, p->tot_len, 0));
         // the buffer must contain data that fits in a Post_command structure
@@ -697,7 +696,7 @@ void rppicomidi::Midi2usbhub::update_json_connected_state()
 
     json_object_set_value(root_object, "attached", attached_value);
     json_object_set_string(root_object, "curpre", preset_manager.get_current_preset_name());
-    // TODO: add "allpre" list of all preset names object
+    preset_manager.serialize_preset_list_to_json(root_object);
     auto ser = json_serialize_to_string(root_value);
     // temporarily disable wifi interrupts to prevent accessing
     // json_connected_state whilst it might be changing
@@ -729,6 +728,35 @@ bool rppicomidi::Midi2usbhub::static_rename_cmd(Post_cmd& cmd) {
     bool success = false;
     if (strncmp("ren", cmd.cmd, 3)==0 && cmd.nargs == 2) {
         success = instance().rename(std::string(cmd.arg0), std::string(cmd.arg1)) == 0;
+    }
+    return success;
+}
+
+bool rppicomidi::Midi2usbhub::static_reset_cmd(Post_cmd& cmd) {
+    bool success = false;
+    if (strncmp("rst", cmd.cmd, 3)==0 && cmd.nargs == 0) {
+        instance().reset();
+        success = true;
+    }
+    return success;
+}
+
+bool rppicomidi::Midi2usbhub::static_load_cmd(Post_cmd& cmd)
+{
+    bool success = false;
+    if (strncmp("lod", cmd.cmd, 3)==0 && cmd.nargs == 1 && strlen(cmd.arg0) <= 12 && strlen(cmd.arg0) > 0) {
+        std::string fn = std::string(cmd.arg0) + ".json";
+        success = instance().preset_manager.load_preset(fn);
+    }
+    return success;
+}
+
+bool rppicomidi::Midi2usbhub::static_save_cmd(Post_cmd& cmd)
+{
+    bool success = false;
+    if (strncmp("sav", cmd.cmd, 3)==0 && cmd.nargs == 1 && strlen(cmd.arg0) <= 12 && strlen(cmd.arg0) > 0) {
+        std::string fn = std::string(cmd.arg0) + ".json";
+        success = instance().preset_manager.save_current_preset(fn);
     }
     return success;
 }

@@ -7,21 +7,34 @@ class ConnectedDevicesTable
         this.maxNickname = 12;
         this.userInputHandler = new UserInputHandler(this.maxNickname);
     }
+
     insertCell(row, text) {
         let newCell = row.insertCell(-1);
         let newText = document.createTextNode(text);
         newCell.appendChild(newText);
         return newCell;
     }
+
+    addCancelPrevEditingOnClick(td) {
+        td.addEventListener('click', (ev) => {
+            this.cancelPrevEditing(td);
+        });
+    }
+
+    insertDisplayCell(row, text) {
+        let td = this.insertCell(row, text);
+        this.addCancelPrevEditingOnClick(td);
+    }
+
     buildTableRow(dev, presetData, dirText, new_tbody) {
         for (let dirid in presetData) {
             if (presetData.hasOwnProperty(dirid)) {
                 if (dirid.includes(dev)) {
                     let new_row = new_tbody.insertRow(-1);
                     let dirLetter = dirText.slice(0,1);
-                    this.insertCell(new_row, dev);
-                    this.insertCell(new_row, dirid.slice(dirid.lastIndexOf(dirLetter) + 1));
-                    this.insertCell(new_row, dirText);
+                    this.insertDisplayCell(new_row, dev);
+                    this.insertDisplayCell(new_row, dirid.slice(dirid.lastIndexOf(dirLetter) + 1));
+                    this.insertDisplayCell(new_row, dirText);
                     let nickname = this.insertCell(new_row, presetData[dirid]);
                     nickname.contentEditable = 'true';
                     nickname.setAttribute('data-id', dirid);
@@ -36,33 +49,24 @@ class ConnectedDevicesTable
                             this.startEditing(nickname);
                         }
                     });
-                    this.insertCell(new_row, this.state.attached[dev]);
+                    this.insertDisplayCell(new_row, this.state.attached[dev]);
                 }
             }
         }
     }
 
-    handleKeydown(ev) {
-        let deleting = (ev.code === "Backspace" || ev.code === "Delete");
-        if((ev.target.firstChild.textContent.length >= this.maxNickname && !deleting) || (deleting && ev.target.firstChild.textContent.length<=0)){
-            ev.preventDefault();
-        }
-    }
-
     handleInput(ev) {
         const btnRename = ev.target.querySelector('.btn-rename');
-        btnRename.disabled = ev.target.firstChild.textContent.length < 1;
-    }
-
-    handlePaste(ev) {
-        const data = ev.clipboardData.getData('Text');
-        if (data.length > this.maxNickname) {
-            console.log("data too long "+data);
-            ev.preventDefault();
-        }
+        btnRename.disabled = (ev.target.firstChild.textContent.length < 1) ||
+            ev.target.firstChild.textContent.includes("?"); // The ? character is the command and argument delimeter
     }
 
     init() {
+        let thead = document.querySelector('#connected-thead');
+        let ths = thead.querySelectorAll('th');
+        ths.forEach(th => {
+            this.addCancelPrevEditingOnClick(th);
+        })
         let new_tbody = document.createElement('tbody');
         new_tbody.setAttribute('id', 'devlist');
         for (let dev in this.state.attached) {
@@ -86,7 +90,15 @@ class ConnectedDevicesTable
         }
     }
 
+    cancelPrevEditing(td) {
+        let activeTd = this.findEditing();
+        if (activeTd) {
+            this.cancelEditing(activeTd);
+        }
+    }
+
     startEditing(td) {
+        this.cancelPrevEditing(td);
         td.className = 'in-editing';
         td.setAttribute('data-old-name',td.textContent);
         this.createButtonToolbar(td);
@@ -139,8 +151,15 @@ class ConnectedDevicesTable
             ev.preventDefault();
         });
     }
+
     removeToolbar(td) {
         const toolbar = td.querySelector('.button-toolbar');
         toolbar.remove(toolbar);
+    }
+
+    findEditing() {
+        let tbody = document.querySelector('#devlist');
+        let tds = tbody.querySelectorAll('td');
+        return Array.prototype.find.call(tds, td => this.inEditing(td));
     }
 };

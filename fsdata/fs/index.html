@@ -10,19 +10,20 @@
         <script src="js/UserInputHandler.js"></script>
         <script src="js/ConnectedDevicesTable.js"></script>
         <script src="js/MidiRoutingTable.js"></script>
+        <script src="js/PresetManager.js"></script>
         <script src="js/StateManager.js"></script>
 		<title>midi2usbhub</title>
 	</head>
-	<body> 
-		<div class="grid main">
-			<h1>midi2usbhub</h1>
-        </div>
+	<body>
+		<ul class="navbar" id="preset-nav">
+			<li id="preset-id"><div class="preset-id">Presets <button>Edit</button></div></li>
+		</ul>
         <div class="grid main">
             <h1>Routing</h1>
             <table class="table table-striped table-header-rotated">
                 <thead>
                     <tr id="routing-to">
-                        <th id="routing-from-to"><div>TO &#x2192 <br> <br>  FROM &#x2193</div></th>
+                        <th id="routing-from-to"><div><button id="routing-rst">Reset</button> TO &#x2192 <br> <br>  FROM &#x2193</div></th>
                     </tr>
                 </thead>
                 <tbody id="routes">
@@ -32,7 +33,7 @@
         <div class="grid main">
 			<h1>Connected Devices</h1>
 			<table class="table table-striped">
-                <thead>
+                <thead id="connected-thead">
                     <th>USB ID</th>
                     <th>Port</th>
                     <th>Direction</th>
@@ -44,7 +45,7 @@
 			</table>
 		</div>
 		<script>
-            var constr = '{"from":{"0000-0000F1":"MIDI-IN-A"},"to":{"0000-0000T1":"MIDI-OUT-A"},"routing":{"MIDI-IN-A":[]},"attached":{"0000-0000":"MIDI A"},"curpre":""}';
+            var constr = '{"from":{"0000-0000F1":"MIDI-IN-A"},"to":{"0000-0000T1":"MIDI-OUT-A"},"routing":{"MIDI-IN-A":[]},"attached":{"0000-0000":"MIDI A"},"curpre":"", "allpre":[]}';
             var stm = new StateManager(constr);
             window.onload = function () {
                 stm.init();

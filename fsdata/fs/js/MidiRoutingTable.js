@@ -86,6 +86,10 @@ class MidiRoutingTable {
     init() {
         this.rebuildHeaderRow();
         this.rebuildRoutingRows();
+        let rstButton = document.querySelector('#routing-rst');
+        rstButton.onclick = () => {
+            this.stateManager.sendCommand('rst', []);
+        }
     }
 
     reinit(jsonState) {

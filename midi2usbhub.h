@@ -228,6 +228,9 @@ namespace rppicomidi
         static bool static_connect_cmd(Post_cmd& cmd);
         static bool static_disconnect_cmd(Post_cmd& cmd);
         static bool static_rename_cmd(Post_cmd& cmd);
+        static bool static_reset_cmd(Post_cmd& cmd);
+        static bool static_load_cmd(Post_cmd& cmd);
+        static bool static_save_cmd(Post_cmd& cmd);
         void protect_from_lwip() {irq_set_enabled(IO_IRQ_BANK0, false);}
         void unprotect_from_lwip() {irq_set_enabled(IO_IRQ_BANK0, true);}
         Preset_manager preset_manager;

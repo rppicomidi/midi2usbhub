@@ -55,6 +55,7 @@ add_custom_command(
         ${FS_DATA_DIR}/fs/css/siimple.min.css
         ${FS_DATA_DIR}/fs/js/ConnectedDevicesTable.js
         ${FS_DATA_DIR}/fs/js/MidiRoutingTable.js
+        ${FS_DATA_DIR}/fs/js/PresetManager.js
         ${FS_DATA_DIR}/fs/js/StateManager.js
         ${FS_DATA_DIR}/fs/js/UserInputHandler.js
         ${FS_DATA_DIR}/fs/img/favicon.ico

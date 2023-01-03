@@ -4,12 +4,14 @@ class StateManager {
         this.state = JSON.parse(jsonState);
         this.tbl = new ConnectedDevicesTable(jsonState, this);
         this.tblR = new MidiRoutingTable(jsonState, this);
+        this.pre = new PresetManager(jsonState, this);
         this.req = undefined;
     }
 
     init() {
         this.tbl.init();
         this.tblR.init();
+        this.pre.init();
     }
 
     reqMidiHubState() {
@@ -18,9 +20,18 @@ class StateManager {
                 let respCode = this.req.status;
                 if (respCode == 200) {
                     try {
-                        JSON.parse(this.req.responseText); // will throw SyntaxError if not valid JSON
-                        this.tbl.reinit(this.req.responseText);
-                        this.tblR.reinit(this.req.responseText);
+                        // will throw SyntaxError if not valid JSON
+                        let newState =JSON.parse(this.req.responseText);
+                        // re-stringify the object so we can test for equality with previous state
+                        // the parson library might not stringify the same way the browser does
+                        let newJsonState = JSON.stringify(newState);
+                        if (newJsonState !== this.jsonState) {
+                            this.state = newState;
+                            this.jsonState = newJsonState;
+                            this.tbl.reinit(this.jsonState);
+                            this.tblR.reinit(this.jsonState);
+                            this.pre.reinit(this.jsonState);
+                        }
                     }
                     catch (error) {
                         console.log(error);

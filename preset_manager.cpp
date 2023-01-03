@@ -139,6 +139,9 @@ bool rppicomidi::Preset_manager::update_current_preset(std::string& preset_name,
         if (mount)
             pico_unmount();
     }
+    if (result) {
+        Midi2usbhub::instance().update_json_connected_state();
+    }
     return result;
 }
 
@@ -293,6 +296,55 @@ FRESULT rppicomidi::Preset_manager::backup_preset(const char* preset_name, bool 
         }
     }
     return res;
+}
+
+int rppicomidi::Preset_manager::serialize_preset_list_to_json(JSON_Object* root_object)
+{
+    int error_code = pico_mount(false);
+    if (error_code != LFS_ERR_OK) {
+        printf("unexpected error %s mounting flash\r\n", pico_errmsg(error_code));
+        return error_code;
+    }
+    lfs_dir_t dir;
+    error_code = lfs_dir_open(&dir, "/");
+    if (error_code != LFS_ERR_OK) {
+        printf("unexpected error %s opening backup directory /\r\n", pico_errmsg(error_code));
+        pico_unmount();
+        return error_code;
+    }
+    struct lfs_info info;
+    std::vector<std::string> presets;
+    while (true) {
+        lfs_ssize_t nread = lfs_dir_read(&dir, &info);
+        if (nread < 0) {
+            printf("errror %s reading preset root directory\r\n", pico_errmsg(nread));
+            return nread;
+        }
+
+        if (nread == 0) {
+            break;
+        }
+        if (info.type == LFS_TYPE_REG) {
+            std::string fn = std::string(info.name);
+            if (fn != std::string(current_preset_filename)) {
+                printf("%s\r\n",fn.substr(0, fn.find_last_of('.')).c_str());
+                presets.push_back(fn.substr(0, fn.find_last_of('.')));
+            }
+        }
+    }
+
+    error_code = lfs_dir_close(&dir);
+    if (error_code == LFS_ERR_OK) {
+        JSON_Value *pre_val = json_value_init_array();
+        JSON_Array *pre_array = json_value_get_array(pre_val);
+        for (auto preset: presets) {
+            if (preset != std::string(current_preset_filename)) {
+                json_array_append_string(pre_array, preset.c_str());
+            }
+        }
+        json_object_set_value(root_object, "allpre", pre_val);
+    }
+    return error_code;
 }
 
 FRESULT rppicomidi::Preset_manager::backup_all_presets()

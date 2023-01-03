@@ -1,3 +1,33 @@
+ul.navbar {
+	list-style-type: none;
+	margin-bottom: 32px;
+	padding: 0;
+	overflow: hidden;
+	background-color: #333;
+    line-height: 28px;
+}
+ul.navbar li {
+	float: left;
+}
+
+ul.navbar li .preset,
+ul.navbar li .preset-id {
+	display: block;
+	color: white;
+	text-align: center;
+	padding: 14px 16px;
+	text-decoration: none;
+}
+ul.navbar li .preset:hover:not(.active) {
+	background-color: #111;
+}
+ul.navbar li .preset.active {
+	background-color: #09a0f6;
+}
+@media screen and (max-width: 600px){
+	ul.navbar li {float: none;}
+}
+
 th {
     text-align: left;
 }

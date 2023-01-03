@@ -31,6 +31,7 @@
 #include "pico_hal.h"
 #include "embedded_cli.h"
 #include "ff.h"
+#include "parson.h"
 namespace rppicomidi
 {
 class Preset_manager
@@ -67,7 +68,11 @@ public:
      */
     void get_current_preset_name(std::string& preset_name) { preset_name = current_preset_name; }
 
-    const char* get_current_preset_name() { return current_preset_name.c_str(); }
+    const char* get_current_preset_name() {
+        return current_preset_name.substr(0, current_preset_name.find_last_of('.')).c_str();
+    }
+
+    int serialize_preset_list_to_json(JSON_Object* root_object);
     /**
      * @brief Copy all presets to USB flash drive
      * 
