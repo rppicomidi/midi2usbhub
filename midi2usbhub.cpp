@@ -354,7 +354,8 @@ rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager, &wifi}, current_co
     post_cmd_list.push_back({{2,{'r','e','n','\0'},{'\0'}, {'\0'}}, static_rename_cmd}); // rename old_nickname new_nickname
     post_cmd_list.push_back({{0,{'r','s','t','\0'},{'\0'}, {'\0'}}, static_reset_cmd}); // reset routing
     post_cmd_list.push_back({{1,{'l','o','d','\0'},{'\0'}, {'\0'}}, static_load_cmd}); // load preset
-    post_cmd_list.push_back({{1,{'s','a','v','\0'},{'\0'}, {'\0'}}, static_save_cmd}); // load preset
+    post_cmd_list.push_back({{1,{'s','a','v','\0'},{'\0'}, {'\0'}}, static_save_cmd}); // save preset
+    post_cmd_list.push_back({{1,{'d','e','l','\0'},{'\0'}, {'\0'}}, static_delete_cmd}); // delete preset
 #if 0    
     post_cmd_list.push_back({1,"sav","",""}); // save preset_name
     post_cmd_list.push_back({1,"del","",""}); // delete preset_name
@@ -679,7 +680,7 @@ void get_info_from_default_nickname(std::string nickname, uint16_t &vid, uint16_
     is_from = nickname.substr(9, 1) == "F";
 }
 
-void rppicomidi::Midi2usbhub::update_json_connected_state()
+void rppicomidi::Midi2usbhub::update_json_connected_state(bool force)
 {
     JSON_Value *root_value = serialize_to_json();
     JSON_Object *root_object = json_value_get_object(root_value);    
@@ -696,6 +697,7 @@ void rppicomidi::Midi2usbhub::update_json_connected_state()
 
     json_object_set_value(root_object, "attached", attached_value);
     json_object_set_string(root_object, "curpre", preset_manager.get_current_preset_name());
+    json_object_set_boolean(root_object, "force", force);
     preset_manager.serialize_preset_list_to_json(root_object);
     auto ser = json_serialize_to_string(root_value);
     // temporarily disable wifi interrupts to prevent accessing
@@ -727,7 +729,9 @@ bool rppicomidi::Midi2usbhub::static_disconnect_cmd(Post_cmd& cmd) {
 bool rppicomidi::Midi2usbhub::static_rename_cmd(Post_cmd& cmd) {
     bool success = false;
     if (strncmp("ren", cmd.cmd, 3)==0 && cmd.nargs == 2) {
-        success = instance().rename(std::string(cmd.arg0), std::string(cmd.arg1)) == 0;
+        std::string old_fn = std::string(cmd.arg0) + ".json";
+        std::string new_fn = std::string(cmd.arg1) + ".json";
+        success = instance().preset_manager.remame_preset(old_fn, new_fn);
     }
     return success;
 }
@@ -760,6 +764,17 @@ bool rppicomidi::Midi2usbhub::static_save_cmd(Post_cmd& cmd)
     }
     return success;
 }
+
+bool rppicomidi::Midi2usbhub::static_delete_cmd(Post_cmd& cmd)
+{
+    bool success = false;
+    if (strncmp("del", cmd.cmd, 3)==0 && cmd.nargs == 1 && strlen(cmd.arg0) <= 12 && strlen(cmd.arg0) > 0) {
+        std::string fn = std::string(cmd.arg0) + ".json";
+        success = instance().preset_manager.delete_preset(fn);
+    }
+    return success;
+}
+
 
 bool rppicomidi::Midi2usbhub::is_cmd_valid(const Post_cmd& cmd)
 {

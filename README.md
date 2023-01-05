@@ -16,6 +16,8 @@ your presets to a USB Flash drive connected to the USB hub. Presets are stored i
 JSON format.
 
 # Project Status
+### 04-Jan-2023
+- Updated preset management UI in the web UI for pico-w branch
 ### 30-Dec-2022
 - Created the pico-w branch
 - Core web server functions are working. You can rename nicknames for device ports

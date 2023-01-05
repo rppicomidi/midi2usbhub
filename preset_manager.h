@@ -61,6 +61,9 @@ public:
      */
     bool load_preset(std::string preset_name);
 
+    bool delete_preset(std::string preset_name);
+    bool remame_preset(std::string old_preset_name, std::string new_preset_name);
+
     /**
      * @brief Get the current preset name
      * 

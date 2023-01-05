@@ -98,6 +98,10 @@ bool rppicomidi::Preset_manager::save_current_preset(std::string preset_name)
     }
     // preset data is written. Now need to update the current preset file
     bool result = update_current_preset(preset_name, false);
+    if (result) {
+        // update the JSON state string and force reloate in case resaving the previous current preset
+        Midi2usbhub::instance().update_json_connected_state(true);
+    }
     pico_unmount();
     return result;
 }
@@ -139,9 +143,7 @@ bool rppicomidi::Preset_manager::update_current_preset(std::string& preset_name,
         if (mount)
             pico_unmount();
     }
-    if (result) {
-        Midi2usbhub::instance().update_json_connected_state();
-    }
+
     return result;
 }
 
@@ -218,6 +220,41 @@ bool rppicomidi::Preset_manager::load_preset(std::string preset_name)
         printf("error %s loading settings %s\r\n", pico_errmsg(error_code), preset_name.c_str());
     }
     return result;
+}
+
+bool rppicomidi::Preset_manager::delete_preset(std::string filename)
+{
+    int error_code = pico_mount(false);
+    if (error_code == LFS_ERR_OK) {
+        error_code = pico_remove(filename.c_str());
+        printf("error %s deleting file %s\r\n", pico_errmsg(error_code), filename.c_str());
+        error_code = pico_unmount();
+        if (error_code != LFS_ERR_OK) {
+            printf("Unexpected Error %s unmounting settings file system\r\n", pico_errmsg(error_code));
+        }
+        else {
+            Midi2usbhub::instance().update_json_connected_state();
+        }
+    }
+    return error_code == LFS_ERR_OK;
+}
+
+
+bool rppicomidi::Preset_manager::remame_preset(std::string old_preset_name, std::string new_preset_name)
+{
+    int error_code = pico_mount(false);
+    if (error_code == LFS_ERR_OK) {
+        error_code = pico_rename(old_preset_name.c_str(), new_preset_name.c_str());
+        printf("error %s renaming file %s to %s\r\n", pico_errmsg(error_code), old_preset_name.c_str(), new_preset_name.c_str());
+        error_code = pico_unmount();
+        if (error_code != LFS_ERR_OK) {
+            printf("Unexpected Error %s unmounting settings file system\r\n", pico_errmsg(error_code));
+        }
+        else {
+            Midi2usbhub::instance().update_json_connected_state();
+        }
+    }
+    return error_code == LFS_ERR_OK;
 }
 
 FRESULT rppicomidi::Preset_manager::backup_preset(const char* preset_name, bool mount)
@@ -327,7 +364,7 @@ int rppicomidi::Preset_manager::serialize_preset_list_to_json(JSON_Object* root_
         if (info.type == LFS_TYPE_REG) {
             std::string fn = std::string(info.name);
             if (fn != std::string(current_preset_filename)) {
-                printf("%s\r\n",fn.substr(0, fn.find_last_of('.')).c_str());
+                //printf("%s\r\n",fn.substr(0, fn.find_last_of('.')).c_str());
                 presets.push_back(fn.substr(0, fn.find_last_of('.')));
             }
         }

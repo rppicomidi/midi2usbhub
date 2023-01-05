@@ -187,7 +187,12 @@ namespace rppicomidi
          * @return const char* the serialized string
          */
         const char* get_json_connected_state() const {return json_connected_state.c_str(); }
-        void update_json_connected_state();
+        /**
+         * @brief Update the JSON serialization string of the device connected state
+         * 
+         * @param force is true to make the web page rebuild itself
+         */
+        void update_json_connected_state(bool force = false);
 #ifdef RPPICOMIDI_PICO_W
         err_t post_begin(void *connection, const char *uri, const char *http_request, u16_t http_request_len,
                             int content_len, char *response_uri, u16_t response_uri_len, u8_t *post_auto_wnd);
@@ -231,6 +236,7 @@ namespace rppicomidi
         static bool static_reset_cmd(Post_cmd& cmd);
         static bool static_load_cmd(Post_cmd& cmd);
         static bool static_save_cmd(Post_cmd& cmd);
+        static bool static_delete_cmd(Post_cmd& cmd);
         void protect_from_lwip() {irq_set_enabled(IO_IRQ_BANK0, false);}
         void unprotect_from_lwip() {irq_set_enabled(IO_IRQ_BANK0, true);}
         Preset_manager preset_manager;

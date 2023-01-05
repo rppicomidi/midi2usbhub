@@ -7,11 +7,11 @@ ul.navbar {
     line-height: 28px;
 }
 ul.navbar li {
+    cursor: pointer;
 	float: left;
 }
 
-ul.navbar li .preset,
-ul.navbar li .preset-id {
+ul.navbar li .preset {
 	display: block;
 	color: white;
 	text-align: center;
@@ -129,4 +129,28 @@ table.table-striped >tbody>tr:nth-child(odd) {
     display: inline-block;
     width: 106px;
     text-align: left;
+}
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: #f1f1f1;
+    color: black;
+    min-width: 160px;
+    overflow: auto;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 1;
+}
+
+.dropdown .preset-mode:hover {
+    background-color: #ddd;
+}
+
+.show {
+    display: block;
 }
