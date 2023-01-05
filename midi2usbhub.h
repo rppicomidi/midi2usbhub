@@ -190,9 +190,10 @@ namespace rppicomidi
         /**
          * @brief Update the JSON serialization string of the device connected state
          * 
-         * @param force is true to make the web page rebuild itself
+         * @note the serialized string always contains "force":"false". The web page will
+         * set its local copy to true to force UI resynchronization.
          */
-        void update_json_connected_state(bool force = false);
+        void update_json_connected_state();
 #ifdef RPPICOMIDI_PICO_W
         err_t post_begin(void *connection, const char *uri, const char *http_request, u16_t http_request_len,
                             int content_len, char *response_uri, u16_t response_uri_len, u8_t *post_auto_wnd);
@@ -233,6 +234,7 @@ namespace rppicomidi
         static bool static_connect_cmd(Post_cmd& cmd);
         static bool static_disconnect_cmd(Post_cmd& cmd);
         static bool static_rename_cmd(Post_cmd& cmd);
+        static bool static_mv_cmd(Post_cmd& cmd);
         static bool static_reset_cmd(Post_cmd& cmd);
         static bool static_load_cmd(Post_cmd& cmd);
         static bool static_save_cmd(Post_cmd& cmd);

@@ -99,8 +99,7 @@ bool rppicomidi::Preset_manager::save_current_preset(std::string preset_name)
     // preset data is written. Now need to update the current preset file
     bool result = update_current_preset(preset_name, false);
     if (result) {
-        // update the JSON state string and force reloate in case resaving the previous current preset
-        Midi2usbhub::instance().update_json_connected_state(true);
+        Midi2usbhub::instance().update_json_connected_state();
     }
     pico_unmount();
     return result;

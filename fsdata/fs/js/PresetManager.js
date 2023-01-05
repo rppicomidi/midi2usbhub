@@ -99,6 +99,9 @@ class PresetManager {
                             this.cancelPrevEditing();
                             ev.target.textContent += ' loading...';
                             this.stateManager.sendCommand('lod', args);
+                            if (newDiv.classList.contains('active')) {
+                                this.stateManager.force();
+                            }
                         }
                         else if (this.mode == this.saveMode) {
                             this.startEditing(newLi, newDiv, 'Save', ()=> {
@@ -132,8 +135,8 @@ class PresetManager {
                     this.startEditing(newLi, newDiv, 'Save', ()=> {
                         this.finishEditing(newLi, newDiv);
                         ev.stopPropagation();
+                        newDiv.textContent += ' saving...';
                     }, true);
-                    newDiv.textContent += ' saving...';
                 }
             });
         }
@@ -190,10 +193,11 @@ class PresetManager {
         this.removeToolbar(elem);
         if (this.mode === this.saveMode) {
             this.stateManager.sendCommand('sav', [elem.textContent]);
+            this.stateManager.force(); // force UI update on next state update
         }
         else if (this.mode === this.renameMode) {
             const args = [elem.getAttribute('data-old-name'), elem.textContent];
-            this.stateManager.sendCommand('ren', args);
+            this.stateManager.sendCommand('mv ', args);
         }
     }
 

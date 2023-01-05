@@ -69,6 +69,11 @@ class StateManager {
         }
     }
 
+    force() {
+        this.state.force = true;
+        this.jsonState = JSON.stringify(this.state);
+    }
+
     sendCommand(command, args) {
         this.cancel();
         this.req = new XMLHttpRequest();

@@ -36,6 +36,14 @@ class MidiRoutingTable {
         oldheaderRow.parentElement.replaceChild(headerRow, oldheaderRow);
     }
 
+    disableAllCheckboxes() {
+        const tbody = document.querySelector('#routes');
+        const checkboxes = tbody.querySelectorAll('input');
+        checkboxes.forEach(element => {
+            element.disabled = true;
+        });
+    }
+
     rebuildRoutingRows() {
         let newTbody = document.createElement('tbody');
         newTbody.setAttribute('id','routes');
@@ -68,6 +76,7 @@ class MidiRoutingTable {
                                             else {
                                                 this.stateManager.sendCommand('dis', args);
                                             }
+                                            this.disableAllCheckboxes();
                                         });
                                     }
                                 }

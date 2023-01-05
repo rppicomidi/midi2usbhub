@@ -352,16 +352,11 @@ rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager, &wifi}, current_co
     post_cmd_list.push_back({{2,{'c','o','n','\0'},{'\0'}, {'\0'}}, static_connect_cmd}); // connect from_nickname to_nickname
     post_cmd_list.push_back({{2,{'d','i','s','\0'},{'\0'}, {'\0'}}, static_disconnect_cmd}); // disconnect from_nickname to_nickname
     post_cmd_list.push_back({{2,{'r','e','n','\0'},{'\0'}, {'\0'}}, static_rename_cmd}); // rename old_nickname new_nickname
+    post_cmd_list.push_back({{2,{'m','v',' ','\0'},{'\0'}, {'\0'}}, static_mv_cmd}); // rename old_preset_filename new_preset_filename
     post_cmd_list.push_back({{0,{'r','s','t','\0'},{'\0'}, {'\0'}}, static_reset_cmd}); // reset routing
     post_cmd_list.push_back({{1,{'l','o','d','\0'},{'\0'}, {'\0'}}, static_load_cmd}); // load preset
     post_cmd_list.push_back({{1,{'s','a','v','\0'},{'\0'}, {'\0'}}, static_save_cmd}); // save preset
     post_cmd_list.push_back({{1,{'d','e','l','\0'},{'\0'}, {'\0'}}, static_delete_cmd}); // delete preset
-#if 0    
-    post_cmd_list.push_back({1,"sav","",""}); // save preset_name
-    post_cmd_list.push_back({1,"del","",""}); // delete preset_name
-    post_cmd_list.push_back({1,"bak","",""}); // backup [preset_name] to external flash
-    post_cmd_list.push_back({1,"res","",""}); // restore preset_name from external flash
-#endif
     // Map the pins to functions
     gpio_init(LED_GPIO);
     gpio_set_dir(LED_GPIO, GPIO_OUT);
@@ -374,10 +369,10 @@ rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager, &wifi}, current_co
     uart_midi_in_port.cable = 0;
     uart_midi_in_port.devaddr = uart_devaddr;
     uart_midi_in_port.sends_data_to_list.clear();
-    uart_midi_in_port.nickname = "MIDI-IN-A";
+    uart_midi_in_port.nickname = "MIDI IN A";
     uart_midi_out_port.cable = 0;
     uart_midi_out_port.devaddr = uart_devaddr;
-    uart_midi_out_port.nickname = "MIDI-OUT-A";
+    uart_midi_out_port.nickname = "MIDI OUT A";
     attached_devices[uart_devaddr].vid = 0;
     attached_devices[uart_devaddr].pid = 0;
     attached_devices[uart_devaddr].product_name = "MIDI A";
@@ -680,7 +675,7 @@ void get_info_from_default_nickname(std::string nickname, uint16_t &vid, uint16_
     is_from = nickname.substr(9, 1) == "F";
 }
 
-void rppicomidi::Midi2usbhub::update_json_connected_state(bool force)
+void rppicomidi::Midi2usbhub::update_json_connected_state()
 {
     JSON_Value *root_value = serialize_to_json();
     JSON_Object *root_object = json_value_get_object(root_value);    
@@ -697,7 +692,7 @@ void rppicomidi::Midi2usbhub::update_json_connected_state(bool force)
 
     json_object_set_value(root_object, "attached", attached_value);
     json_object_set_string(root_object, "curpre", preset_manager.get_current_preset_name());
-    json_object_set_boolean(root_object, "force", force);
+    json_object_set_boolean(root_object, "force", false); // always false from the webserver
     preset_manager.serialize_preset_list_to_json(root_object);
     auto ser = json_serialize_to_string(root_value);
     // temporarily disable wifi interrupts to prevent accessing
@@ -726,12 +721,22 @@ bool rppicomidi::Midi2usbhub::static_disconnect_cmd(Post_cmd& cmd) {
     return success;
 }
 
-bool rppicomidi::Midi2usbhub::static_rename_cmd(Post_cmd& cmd) {
+bool rppicomidi::Midi2usbhub::static_mv_cmd(Post_cmd& cmd) {
     bool success = false;
     if (strncmp("ren", cmd.cmd, 3)==0 && cmd.nargs == 2) {
         std::string old_fn = std::string(cmd.arg0) + ".json";
         std::string new_fn = std::string(cmd.arg1) + ".json";
         success = instance().preset_manager.remame_preset(old_fn, new_fn);
+    }
+    return success;
+}
+
+bool rppicomidi::Midi2usbhub::static_rename_cmd(Post_cmd& cmd) {
+    bool success = false;
+    if (strncmp("ren", cmd.cmd, 3)==0 && cmd.nargs == 2) {
+        std::string old_nn = std::string(cmd.arg0);
+        std::string new_nn = std::string(cmd.arg1);
+        success = instance().rename(old_nn, new_nn);
     }
     return success;
 }
@@ -774,7 +779,6 @@ bool rppicomidi::Midi2usbhub::static_delete_cmd(Post_cmd& cmd)
     }
     return success;
 }
-
 
 bool rppicomidi::Midi2usbhub::is_cmd_valid(const Post_cmd& cmd)
 {

@@ -30,10 +30,11 @@ class ConnectedDevicesTable
         for (let dirid in presetData) {
             if (presetData.hasOwnProperty(dirid)) {
                 if (dirid.includes(dev)) {
-                    let new_row = new_tbody.insertRow(-1);
-                    let dirLetter = dirText.slice(0,1);
+                    const new_row = new_tbody.insertRow(-1);
+                    const dirLetter = dirText.slice(0,1);
                     this.insertDisplayCell(new_row, dev);
-                    this.insertDisplayCell(new_row, dirid.slice(dirid.lastIndexOf(dirLetter) + 1));
+                    const port = dirid.slice(dirid.lastIndexOf(dirLetter) + 1);
+                    this.insertDisplayCell(new_row, port);
                     this.insertDisplayCell(new_row, dirText);
                     let nickname = this.insertCell(new_row, presetData[dirid]);
                     nickname.contentEditable = 'true';
@@ -49,7 +50,17 @@ class ConnectedDevicesTable
                             this.startEditing(nickname);
                         }
                     });
-                    this.insertDisplayCell(new_row, this.state.attached[dev]);
+                    if (dev === '0000-0000') {
+                        const portLetter = String.fromCharCode('A'.charCodeAt(0) + Number(port) - 1);
+                        let midiDirText = ' OUT ';
+                        if (dirLetter === 'F') {
+                            midiDirText = ' IN ';
+                        }
+                        this.insertDisplayCell(new_row, 'MIDI'+midiDirText+portLetter);
+                    }
+                    else {
+                        this.insertDisplayCell(new_row, this.state.attached[dev]);
+                    }
                 }
             }
         }
@@ -58,6 +69,7 @@ class ConnectedDevicesTable
     handleInput(ev) {
         const btnRename = ev.target.querySelector('.btn-rename');
         btnRename.disabled = (ev.target.firstChild.textContent.length < 1) ||
+            ev.target.firstChild.textContent === ev.target.getAttribute('data-old-name') ||
             ev.target.firstChild.textContent.includes("?"); // The ? character is the command and argument delimeter
     }
 
@@ -115,8 +127,8 @@ class ConnectedDevicesTable
         this.removeToolbar(td);
         const oldnickname = td.getAttribute('data-old-name');
         const id = td.getAttribute('data-id');
-        console.log(id +':'+oldnickname+'=>'+td.textContent);
         this.stateManager.sendCommand('ren', [oldnickname, td.textContent]);
+        td.textContent+=' renaming...';
     }
 
     inEditing(td) {
@@ -142,6 +154,7 @@ class ConnectedDevicesTable
             this.cancelEditing(td);
         });
         const btnRename = toolbar.querySelector('.btn-rename');
+        btnRename.disabled = true;
         btnRename.addEventListener('click', (ev) => {
             ev.stopPropagation();
             this.finishEditing(td);
