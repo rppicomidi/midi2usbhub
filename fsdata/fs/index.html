@@ -7,11 +7,6 @@
 		<link rel="stylesheet" type="text/css" href="css/siimple.min.css">
 		<link rel="stylesheet" type="text/css" href="css/style.css">
 		<link rel="icon" type="image/x-icon" href="img/favicon.ico">
-        <script src="js/UserInputHandler.js"></script>
-        <script src="js/ConnectedDevicesTable.js"></script>
-        <script src="js/MidiRoutingTable.js"></script>
-        <script src="js/PresetManager.js"></script>
-        <script src="js/StateManager.js"></script>
 		<title>midi2usbhub</title>
 	</head>
 	<body>
@@ -45,6 +40,814 @@
 			</table>
 		</div>
 		<script>
+class UserInputHandler {
+    constructor(maxchars) {
+        this.maxchars = maxchars;
+    }
+    stripHtmlFromText(text) {
+        let doc = new DOMParser().parseFromString(text, 'text/html');
+        return doc.body.textContent || "";
+    }
+    stripLinebreaksFromText(text) {
+        return text.replace(/[\r\n]+/gm, "");
+    }
+    handleBeforeInput(ev) {
+        let itype = ev.inputType;
+        if (!itype.includes("history") && !itype.includes("delete")) {
+            if (itype.includes("format")) {
+                // don't allow formatting the input
+                ev.preventDefault();
+            }
+            else if (itype.includes("insert")) {
+                let data = ev.data;
+                let datalen = 0;
+                let requireFixup = false;
+                if (data === undefined || data === null) {
+                    if (ev.dataTransfer) {
+                        data = ev.dataTransfer.getData('text/plain');
+                        // don't allow paste of anything but plain text
+                        if (data && ev.dataTransfer.types.length > 1 && ev.dataTransfer.types[0] !== 'text/plain') {
+                            requireFixup = true;
+                        }
+                    }
+                    else {
+                        console.log('no ev.dataTransfer');
+                        data = null;
+                    }
+                }
+                if (data) {
+                    // make sure that if the input is accepted, the data will fit
+                    datalen = data.length;
+                    let currentLen = ev.target.firstChild.textContent.length;
+                    let sel = document.getSelection();
+                    let selLeft = 0;
+                    let selRight = 0;
+                    let newTextContent = "";
+                    if (sel.type === 'Range') {
+                        if (sel.focusOffset > sel.anchorOffset) {
+                            // initialize selLeft & selRight
+                            selLeft = sel.anchorOffset;
+                            selRight = sel.focusOffset;
+                        }
+                        else {
+                            selLeft = sel.focusOffset;
+                            selRight = sel.anchorOffset;
+                        }
+                        // insert will overwrite selected text
+                        currentLen -= (selRight - selLeft);
+                    }
+                    else if (sel.type == 'Caret') {
+                        selLeft = sel.anchorOffset;
+                        selRight = selLeft;
+                    }
+                    else {
+                        // probably should not be sel.type === 'none', but if it is, add text to the end
+                        selLeft = currentLen;
+                        selRight = selLeft;
+                        console.log(sel.type);
+                    }
+                    if ((datalen + currentLen) > this.maxchars) {
+                        // new text input will make text too long; cancel the insert
+                        ev.preventDefault();
+                        console.log(currentLen + " " +datalen);
+                    }
+                    else {
+                        newTextContent = ev.target.firstChild.textContent.slice(0, selLeft) + data + ev.target.firstChild.textContent.slice(selRight);
+                        let cleanText = this.stripHtmlFromText(newTextContent);
+                        cleanText = this.stripLinebreaksFromText(cleanText);
+                        if (cleanText !== newTextContent) {
+                            newTextContent = cleanText;
+                            requireFixup = true;
+                            console.log('characters cleaned from input');
+                        }
+                    }
+                    if (requireFixup) {
+                        // either someone tried to paste HTML or RTF text, or someone typed in HTML manually
+                        ev.target.firstChild.textContent = newTextContent;
+                        ev.preventDefault();
+                    }
+                }
+                else {
+                    // probably the 'enter' key or trying to paste an image or something
+                    ev.preventDefault();
+                }
+            }
+            else {
+                // not sure what this is
+                console.log('unexpected inputType='+itype);
+                ev.preventDefault();
+            }
+        }
+    }
+    // else is history or delete. just do the default action
+}
+
+class ConnectedDevicesTable
+{
+    constructor(jsonState, stateManager) {
+        this.jsonState = jsonState;
+        this.stateManager = stateManager;
+        this.state = JSON.parse(jsonState);
+        this.maxNickname = 12;
+        this.userInputHandler = new UserInputHandler(this.maxNickname);
+    }
+
+    insertCell(row, text) {
+        let newCell = row.insertCell(-1);
+        let newText = document.createTextNode(text);
+        newCell.appendChild(newText);
+        return newCell;
+    }
+
+    addCancelPrevEditingOnClick(td) {
+        td.addEventListener('click', (ev) => {
+            this.cancelPrevEditing(td);
+        });
+    }
+
+    insertDisplayCell(row, text) {
+        let td = this.insertCell(row, text);
+        this.addCancelPrevEditingOnClick(td);
+    }
+
+    buildTableRow(dev, presetData, dirText, new_tbody) {
+        for (let dirid in presetData) {
+            if (presetData.hasOwnProperty(dirid)) {
+                if (dirid.includes(dev)) {
+                    const new_row = new_tbody.insertRow(-1);
+                    const dirLetter = dirText.slice(0,1);
+                    this.insertDisplayCell(new_row, dev);
+                    const port = dirid.slice(dirid.lastIndexOf(dirLetter) + 1);
+                    this.insertDisplayCell(new_row, port);
+                    this.insertDisplayCell(new_row, dirText);
+                    let nickname = this.insertCell(new_row, presetData[dirid]);
+                    nickname.contentEditable = 'true';
+                    nickname.setAttribute('data-id', dirid);
+                    nickname.addEventListener("beforeinput", (ev) => {
+                        this.userInputHandler.handleBeforeInput(ev);
+                    });
+                    nickname.addEventListener("input", (ev) => {
+                        this.handleInput(ev);
+                    });
+                    nickname.addEventListener('click', (ev) => {
+                        if (!this.inEditing(nickname)) {
+                            this.startEditing(nickname);
+                        }
+                    });
+                    if (dev === '0000-0000') {
+                        const portLetter = String.fromCharCode('A'.charCodeAt(0) + Number(port) - 1);
+                        let midiDirText = ' OUT ';
+                        if (dirLetter === 'F') {
+                            midiDirText = ' IN ';
+                        }
+                        this.insertDisplayCell(new_row, 'MIDI'+midiDirText+portLetter);
+                    }
+                    else {
+                        this.insertDisplayCell(new_row, this.state.attached[dev]);
+                    }
+                }
+            }
+        }
+    }
+
+    handleInput(ev) {
+        const btnRename = ev.target.querySelector('.btn-rename');
+        btnRename.disabled = (ev.target.firstChild.textContent.length < 1) ||
+            ev.target.firstChild.textContent === ev.target.getAttribute('data-old-name') ||
+            ev.target.firstChild.textContent.includes("?"); // The ? character is the command and argument delimeter
+    }
+
+    init() {
+        let thead = document.querySelector('#connected-thead');
+        let ths = thead.querySelectorAll('th');
+        ths.forEach(th => {
+            this.addCancelPrevEditingOnClick(th);
+        })
+        let new_tbody = document.createElement('tbody');
+        new_tbody.setAttribute('id', 'devlist');
+        for (let dev in this.state.attached) {
+            if (this.state.attached.hasOwnProperty(dev)) {
+                // dev is the USB ID. Alternately search from and
+                // to lists for the same ID an populate table rows accordingly
+                this.buildTableRow(dev, this.state.from, 'FROM',new_tbody);
+                this.buildTableRow(dev, this.state.to, 'TO', new_tbody);
+            }
+        }
+        let old_tbody = document.querySelector('#devlist');
+
+        old_tbody.parentNode.replaceChild(new_tbody, old_tbody);
+    }
+
+    reinit(jsonState) {
+        if (jsonState !== this.jsonState) {
+            this.jsonState = jsonState;
+            this.state = JSON.parse(jsonState);
+            this.init();
+        }
+    }
+
+    cancelPrevEditing(td) {
+        let activeTd = this.findEditing();
+        if (activeTd) {
+            this.cancelEditing(activeTd);
+        }
+    }
+
+    startEditing(td) {
+        this.cancelPrevEditing(td);
+        td.className = 'in-editing';
+        td.setAttribute('data-old-name',td.textContent);
+        this.createButtonToolbar(td);
+    }
+
+    cancelEditing(td) {
+        td.classList.remove('in-editing');
+        this.removeToolbar(td);
+        td.textContent = td.getAttribute('data-old-name');
+    }
+
+    finishEditing(td) {
+        td.classList.remove('in-editing');
+        this.removeToolbar(td);
+        const oldnickname = td.getAttribute('data-old-name');
+        const id = td.getAttribute('data-id');
+        this.stateManager.sendCommand('ren', [oldnickname, td.textContent]);
+        td.textContent+=' renaming...';
+    }
+
+    inEditing(td) {
+        return td.classList.contains('in-editing');
+    }
+
+    createButtonToolbar(td) {
+        const toolbar = document.createElement('div');
+        toolbar.className = 'button-toolbar';
+        toolbar.setAttribute('contentEditable','false');
+        toolbar.innerHTML = `
+        <div class="button-wrapper">
+            <button class="btn-small btn-cancel">Cancel</button>
+            <button class="btn-small btn-rename">Rename</button>
+        </div>
+        `
+
+        td.appendChild(toolbar);
+
+        const btnCancel = toolbar.querySelector('.btn-cancel');
+        btnCancel.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            this.cancelEditing(td);
+        });
+        const btnRename = toolbar.querySelector('.btn-rename');
+        btnRename.disabled = true;
+        btnRename.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            this.finishEditing(td);
+        });
+        // do not allow button elements to be selected
+        toolbar.addEventListener('selectstart', (ev) => {
+            ev.preventDefault();
+        });
+    }
+
+    removeToolbar(td) {
+        const toolbar = td.querySelector('.button-toolbar');
+        toolbar.remove(toolbar);
+    }
+
+    findEditing() {
+        let tbody = document.querySelector('#devlist');
+        let tds = tbody.querySelectorAll('td');
+        return Array.prototype.find.call(tds, td => this.inEditing(td));
+    }
+};
+
+class MidiRoutingTable {
+    constructor(jsonState, stateManager) {
+        this.jsonState = jsonState;
+        this.state = JSON.parse(jsonState);
+        this.stateManager = stateManager;
+    }
+    // need an insert column header function
+    insertHeader45(row, text) {
+        let newText = document.createTextNode(text);
+        let newSpan = document.createElement('span');
+        newSpan.appendChild(newText);
+        let newDiv = document.createElement('div');
+        newDiv.appendChild(newSpan);
+        let newTh = document.createElement('th');
+        newTh.className = 'rotate-45';
+        newTh.appendChild(newDiv);
+        row.appendChild(newTh);
+    }
+
+    rebuildHeaderRow() {
+        let headerRow = document.createElement('tr');
+        headerRow.setAttribute('id', 'routing-to');
+
+        let oldheaderRow = document.querySelector('#routing-to');
+        let firstTh = document.importNode(document.querySelector('#routing-from-to'), true);
+        headerRow.appendChild(firstTh);
+        for (let idto in this.state.to) {
+            if (this.state.to.hasOwnProperty(idto)) {
+                for (let dev in this.state.attached) {
+                    if (this.state.attached.hasOwnProperty(dev) && idto.includes(dev)) {
+                        this.insertHeader45(headerRow, this.state.to[idto]);
+                    }
+                }
+            }
+        }
+        oldheaderRow.parentElement.replaceChild(headerRow, oldheaderRow);
+    }
+
+    disableAllCheckboxes() {
+        const tbody = document.querySelector('#routes');
+        const checkboxes = tbody.querySelectorAll('input');
+        checkboxes.forEach(element => {
+            element.disabled = true;
+        });
+    }
+
+    rebuildRoutingRows() {
+        let newTbody = document.createElement('tbody');
+        newTbody.setAttribute('id','routes');
+        let ncols = Object.keys(this.state.to).length;
+        for (let idfrom in this.state.from) {
+            if (this.state.from.hasOwnProperty(idfrom)) {
+                for (let dev in this.state.attached) {
+                    if (this.state.attached.hasOwnProperty(dev) && idfrom.includes(dev)) {
+                        let newRow = newTbody.insertRow(-1);
+                        let newFrom = document.createElement('th');
+                        newFrom.className = 'row-header';
+                        let newText = document.createTextNode(this.state.from[idfrom]);
+                        newFrom.appendChild(newText);
+                        newRow.append(newFrom);
+                        for (let idto in this.state.to) {
+                            if (this.state.to.hasOwnProperty(idto)) {
+                                let newCheckBox = document.createElement('input');
+                                newCheckBox.type = 'checkbox';
+                                for (let idroute in this.state.routing) {
+                                    if (this.state.routing.hasOwnProperty(idroute) && idroute === this.state.from[idfrom]) {
+                                        newCheckBox.checked = (this.state.routing[idroute].indexOf(this.state.to[idto]) > -1);
+                                        newCheckBox.setAttribute('route-from', this.state.from[idfrom]);
+                                        newCheckBox.setAttribute('route-to', this.state.to[idto]);
+                                        newCheckBox.addEventListener('click', (ev) => {
+                                            let args = [ev.target.getAttribute('route-from'), ev.target.getAttribute('route-to')];
+                                            //console.log(ev.target.getAttribute('route-from')+ "->"+ev.target.getAttribute('route-to')+" "+ev.target.checked);
+                                            if (ev.target.checked) {
+                                                this.stateManager.sendCommand('con', args);
+                                            }
+                                            else {
+                                                this.stateManager.sendCommand('dis', args);
+                                            }
+                                            this.disableAllCheckboxes();
+                                        });
+                                    }
+                                }
+                                let newCell = newRow.insertCell(-1);
+                                newCell.appendChild(newCheckBox);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let oldTbody = document.querySelector('#routes');
+        oldTbody.parentNode.replaceChild(newTbody, oldTbody);
+    }
+
+    init() {
+        this.rebuildHeaderRow();
+        this.rebuildRoutingRows();
+        let rstButton = document.querySelector('#routing-rst');
+        rstButton.onclick = () => {
+            this.stateManager.sendCommand('rst', []);
+        }
+    }
+
+    reinit(jsonState) {
+        this.state = JSON.parse(jsonState);
+        this.init();
+    }
+
+    postCommand(commandObject) {
+        
+    }
+}
+class PresetManager {
+    constructor(jsonState, stateManager) {
+        this.jsonState = jsonState;
+        this.state = JSON.parse(jsonState);
+        this.stateManager = stateManager;
+        this.maxFilename = 12;
+        this.userInputHandler = new UserInputHandler(this.maxFilename);
+        this.saveMode='Save';
+        this.loadMode='Load';
+        this.renameMode='Rename';
+        this.deleteMode='Delete';
+        this.mode =  this.saveMode;
+    }
+
+
+    init() {
+        this.rebuildPresetMenu();
+        /*
+        window.addEventListener('click', (ev) => {
+            this.cancelPrevEditing();
+        });*/
+    }
+
+    reinit(jsonState) {
+        this.state = JSON.parse(jsonState);
+        this.init();
+    }
+
+    handleModeClick() {
+        this.cancelPrevEditing();
+        this.createModeButtonToolbar();
+    }
+    /*
+    save preset: show current preset if there is one and New Preset
+    load preset: show all presets. Do not show New Preset
+    rename preset: show all presets. Do not show New Preset
+    delete preset: show all presets. Do not show New Preset
+    */
+    rebuildPresetMenu() {
+        let old_navbar = document.querySelector('#preset-nav')
+        let navbar = document.createElement('ul');
+        navbar.setAttribute('id', 'preset-nav');
+        navbar.classList.add('navbar');
+        let firstLi = document.createElement('li');
+        firstLi.setAttribute('id','preset-id');
+        let firstDiv = document.createElement('div');
+        firstDiv.classList.add('preset');
+        firstDiv.setAttribute('id','preset-mode');
+        let firstDivText = document.createTextNode('\u{25BC} ' +this.mode+ ' Presets');
+        firstDiv.appendChild(firstDivText);
+        firstLi.appendChild(firstDiv);
+        // do not allow to be selected
+        firstLi.addEventListener('selectstart', (ev) => {
+            ev.preventDefault();
+        });
+        this.handleModeClick = this.handleModeClick.bind(this);
+        firstLi.addEventListener('click', this.handleModeClick);
+        navbar.appendChild(firstLi);
+        this.state.allpre.forEach(preset => {
+            if (preset === this.state.curpre || this.mode !== this.saveMode) {
+                let newText = document.createTextNode(preset);
+                let newDiv = document.createElement('div');            
+                newDiv.classList.add('preset');
+                if (preset === this.state.curpre) {
+                    newDiv.classList.add('active');
+                }
+                newDiv.appendChild(newText);
+                let newLi = document.createElement('li');
+                newLi.appendChild(newDiv);
+                navbar.appendChild(newLi);
+                if (this.mode === this.renameMode) {
+                    newDiv.contentEditable = 'true';
+                    newDiv.addEventListener("beforeinput", (ev) => {
+                        this.userInputHandler.handleBeforeInput(ev);
+                    });
+                    newDiv.addEventListener("input", (ev) => {
+                        this.handleInput(ev);
+                    });
+                    newDiv.addEventListener('click', (ev)=> {
+                        this.startEditing(newLi, newDiv, 'Rename', ()=> {
+                            this.finishEditing(newLi, newDiv);
+                            ev.stopPropagation();
+                            newDiv.textContent += ' renaming...';
+                        }, true);
+                    });
+                }
+                else {
+                    newDiv.addEventListener('click', (ev)=> {
+                        const args = [ev.target.textContent];
+                        if (this.mode === this.deleteMode) {
+                            this.startEditing(newLi, newDiv, 'Delete', ()=> {
+                                this.cancelEditing(newLi, newDiv);
+                                ev.stopPropagation();
+                                this.stateManager.sendCommand('del', args);
+                                ev.target.textContent += ' deleting...';
+                            }, false);
+                        }
+                        else if (this.mode === this.loadMode) {
+                            this.cancelPrevEditing();
+                            ev.target.textContent += ' loading...';
+                            this.stateManager.sendCommand('lod', args);
+                            if (newDiv.classList.contains('active')) {
+                                this.stateManager.force();
+                            }
+                        }
+                        else if (this.mode == this.saveMode) {
+                            this.startEditing(newLi, newDiv, 'Save', ()=> {
+                                this.finishEditing(newLi, newDiv);
+                                ev.stopPropagation();
+                                newDiv.textContent += ' saving...';
+                            }, false);
+                        }
+                        ev.stopPropagation();
+                    });
+                }
+            }
+        });
+        if (this.mode === this.saveMode) {
+            let newText = document.createTextNode("New Preset");
+            let newDiv = document.createElement('div');            
+            newDiv.appendChild(newText);
+            newDiv.classList.add('preset');
+            newDiv.contentEditable = 'true';
+            let newLi = document.createElement('li');
+            newLi.appendChild(newDiv);
+            navbar.appendChild(newLi);
+            newDiv.addEventListener("beforeinput", (ev) => {
+                this.userInputHandler.handleBeforeInput(ev);
+            });
+            newDiv.addEventListener("input", (ev) => {
+                this.handleInput(ev);
+            });
+            newDiv.addEventListener('click', (ev) => {
+                if (!this.inEditing(newLi)) {
+                    this.startEditing(newLi, newDiv, 'Save', ()=> {
+                        this.finishEditing(newLi, newDiv);
+                        ev.stopPropagation();
+                        newDiv.textContent += ' saving...';
+                    }, true);
+                }
+            });
+        }
+        old_navbar.parentNode.replaceChild(navbar, old_navbar);
+    }
+
+    handleInput(ev) {
+        const btnOK = ev.target.querySelector('.btn-ok');
+        const prevText = ev.target.getAttribute('data-old-name');
+        btnOK.disabled = (ev.target.firstChild.textContent.length < 1) ||
+            prevText === ev.target.firstChild.textContent ||
+            ev.target.firstChild.textContent.includes("?"); // The ? character is the command and argument delimeter
+    }
+
+    inEditing(elem) {
+        return elem.classList.contains('in-editing');
+    }
+
+    cancelPrevEditing() {
+        let parent = this.findEditing();
+        if (parent) {
+            let activeElem = parent.querySelectorAll('div');
+            if (activeElem[0]) {
+                console.log(activeElem[0].textContent);
+                this.cancelEditing(parent, activeElem[0]);
+            }
+            const id = parent.getAttribute('id');
+            if (id && id === 'preset-id') {
+                parent.addEventListener('click', this.handleModeClick);
+            }
+        }
+    }
+
+    startEditing(parent, elem, okText, okFn, disableOK) {
+        this.cancelPrevEditing();
+        parent.classList.add('in-editing');
+        elem.setAttribute('data-old-name',elem.textContent);
+        this.createButtonToolbar(parent, elem, okText, okFn, disableOK);
+    }
+
+    cancelEditing(parent, elem) {
+        parent.classList.remove('in-editing');
+        this.removeToolbar(elem);
+        if (elem.getAttribute('contentEditable'))
+            elem.textContent = elem.getAttribute('data-old-name');
+        else if (elem.getAttribute('id') === 'preset-id') {
+            this.handleModeClick = this.handleModeClick.bind(this);
+            elem.addEventListener('click', this.handleModeClick);
+        }
+    }
+
+    finishEditing(parent, elem) {
+        parent.classList.remove('in-editing');
+        this.removeToolbar(elem);
+        if (this.mode === this.saveMode) {
+            this.stateManager.sendCommand('sav', [elem.textContent]);
+            this.stateManager.force(); // force UI update on next state update
+        }
+        else if (this.mode === this.renameMode) {
+            const args = [elem.getAttribute('data-old-name'), elem.textContent];
+            this.stateManager.sendCommand('mv ', args);
+        }
+    }
+
+    createButtonToolbar(parent, elem, okName, okClickFn, disableOK) {
+        const toolbar = document.createElement('div');
+        toolbar.className = 'button-toolbar';
+        toolbar.setAttribute('contentEditable','false');
+        toolbar.innerHTML = `
+        <div class="button-wrapper">
+            <button class="btn-small btn-cancel">Cancel</button>
+            <button class="btn-small btn-ok">OK</button>
+        </div>
+        `
+
+        elem.appendChild(toolbar);
+
+        const btnCancel = toolbar.querySelector('.btn-cancel');
+        btnCancel.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const modesel = document.querySelector('#preset-id');
+            this.cancelEditing(parent, elem);
+        });
+        const btnOK = toolbar.querySelector('.btn-ok');
+        btnOK.textContent = okName;
+        btnOK.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            okClickFn();
+        });
+        btnOK.disabled = disableOK;
+        // do not allow button elements to be selected
+        toolbar.addEventListener('selectstart', (ev) => {
+            ev.preventDefault();
+        });
+    }
+
+    createModeButtonToolbar() {
+        const toolbar = document.createElement('div');
+        toolbar.className = 'button-toolbar';
+        toolbar.setAttribute('contentEditable','false');
+        let newDiv = document.createElement('div');
+        newDiv.className = 'button-wrapper';
+        let saveButtonText = document.createTextNode(this.saveMode);
+        let loadButtonText = document.createTextNode(this.loadMode);
+        let renameButtonText = document.createTextNode(this.renameMode);
+        let deleteButtonText = document.createTextNode(this.deleteMode);
+        let saveButton = document.createElement('button');
+        saveButton.appendChild(saveButtonText);
+        saveButton.addEventListener('click', () => {
+            this.mode = this.saveMode;
+            this.rebuildPresetMenu();
+        });
+        toolbar.appendChild(saveButton);
+        let loadButton = document.createElement('button');
+        loadButton.appendChild(loadButtonText);
+        loadButton.addEventListener('click', () => {
+            this.mode = this.loadMode;
+            this.rebuildPresetMenu();
+        });
+        toolbar.appendChild(loadButton);
+        let renameButton = document.createElement('button');
+        renameButton.appendChild(renameButtonText);
+        renameButton.addEventListener('click', () => {
+            this.mode = this.renameMode;
+            this.rebuildPresetMenu();
+        });
+        toolbar.appendChild(renameButton);
+        let deleteButton = document.createElement('button');
+        deleteButton.appendChild(deleteButtonText);
+        deleteButton.addEventListener('click', () => {
+            this.mode = this.deleteMode;
+            this.rebuildPresetMenu();
+        });
+        toolbar.appendChild(deleteButton);
+        
+        let firstDiv = document.querySelector('#preset-mode');
+        firstDiv.appendChild(toolbar);
+        let firstLi = document.querySelector('#preset-id');
+        firstLi.removeEventListener('click', this.handleModeClick);
+        firstLi.classList.add('in-editing');
+
+        // do not allow button elements to be selected
+        toolbar.addEventListener('selectstart', (ev) => {
+            ev.preventDefault();
+        });
+
+    }
+    removeToolbar(elem) {
+        const toolbar = elem.querySelector('.button-toolbar');
+        toolbar.remove(toolbar);
+    }
+
+    findEditing() {
+        let lu = document.querySelector('#preset-nav');
+        let lis = lu.querySelectorAll('li');
+        return Array.prototype.find.call(lis, elem => this.inEditing(elem));
+    }
+}
+class StateManager {
+    constructor(jsonState) {
+        this.jsonState = jsonState;
+        this.state = JSON.parse(jsonState);
+        this.tbl = new ConnectedDevicesTable(jsonState, this);
+        this.tblR = new MidiRoutingTable(jsonState, this);
+        this.pre = new PresetManager(jsonState, this);
+        this.req = undefined;
+    }
+
+    init() {
+        this.tbl.init();
+        this.tblR.init();
+        this.pre.init();
+    }
+
+    reqMidiHubState() {
+        this.req = new XMLHttpRequest();
+        this.req.onload = () => { if (this.req.readyState == this.req.DONE) {
+                let respCode = this.req.status;
+                if (respCode == 200) {
+                    try {
+                        // will throw SyntaxError if not valid JSON
+                        let newState =JSON.parse(this.req.responseText);
+                        // re-stringify the object so we can test for equality with previous state
+                        // the parson library might not stringify the same way the browser does
+                        let newJsonState = JSON.stringify(newState);
+                        if (newJsonState !== this.jsonState) {
+                            this.state = newState;
+                            this.jsonState = newJsonState;
+                            this.tbl.reinit(this.jsonState);
+                            this.tblR.reinit(this.jsonState);
+                            this.pre.reinit(this.jsonState);
+                        }
+                    }
+                    catch (error) {
+                        console.log(error);
+                    }
+                }
+                this.req = undefined;
+                this.setup();
+            }
+        };
+        this.req.onerror = () => {
+            this.req = undefined;
+            this.setup();
+        };
+        this.req.onabort = () => {
+            this.req = undefined;
+        };
+        this.req.open("GET","/connected_state.json", true);
+        this.req.send();
+        this.timeoutId = undefined;
+    }
+
+    setup() {
+        if (typeof this.timeoutId === 'number') {
+            this.cancel();
+        }
+        this.timeoutId = setTimeout(()=>{ this.reqMidiHubState();}, 1000); // poll the LED state from the server one second from now.
+    }
+
+    cancel() {
+        if (this.timeoutId != undefined) {
+            clearTimeout(this.timeoutId);
+        }
+        if (this.req != undefined) {
+            this.req.abort();
+        }
+    }
+
+    force() {
+        this.state.force = true;
+        this.jsonState = JSON.stringify(this.state);
+    }
+
+    sendCommand(command, args) {
+        this.cancel();
+        this.req = new XMLHttpRequest();
+        this.req.open("POST", "/post_cmd.txt", true);
+        this.req.setRequestHeader("Content-Type", "text/plain");
+        this.req.onload = () => {
+            let state = this.req.readyState;
+            let respCode = this.req.status;
+            if (state == this.req.DONE) {
+                if (respCode === 201) {
+                    let data = JSON.parse(this.req.responseText);
+                    if (data !== null && data.hasOwnProperty('result') && data['result'] === 'OK') {
+                        this.setup();
+                    }
+                }
+                else if (respCode === 400 || respCode === 404 || respCode === 429) {
+                    let newHref = '/' +respCode+'.html';
+                    document.location.href= newHref;
+                }
+                else {
+                    // command was rejected; force hub state to right itself now
+                    console.log('unexpected error code'+respCode);
+                    this.reqMidiHubState();
+                }
+            }
+        };
+        this.req.onerror = () => {
+            // there was an error. force hub state to right itself now
+            this.reqMidiHubState();
+        };
+        this.req.onabort = () => {
+            // there was an error. force hub state to right itself now
+            this.reqMidiHubState();
+        };
+        let cmd = command;
+        for (const arg of args) {
+            cmd += "?"+arg;
+        }
+        console.log("command="+cmd);
+        this.req.send(cmd);
+    }
+}
             var constr = '{"from":{"0000-0000F1":"MIDI-IN-A"},"to":{"0000-0000T1":"MIDI-OUT-A"},"routing":{"MIDI-IN-A":[]},"attached":{"0000-0000":"MIDI A"},"curpre":"", "allpre":[]}';
             var stm = new StateManager(constr);
             window.onload = function () {
