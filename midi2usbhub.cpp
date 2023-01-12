@@ -317,16 +317,16 @@ void rppicomidi::Midi2usbhub::flush_usb_tx()
     }
 }
 
-void rppicomidi::Midi2usbhub::poll_midi_uart_rx()
+void rppicomidi::Midi2usbhub::poll_midi_uart_rx(uint8_t port)
 {
     uint8_t rx[48];
     // Pull any bytes received on the MIDI UART out of the receive buffer and
     // send them out via USB MIDI on virtual cable 0
-    uint8_t nread = pio_midi_uart_poll_rx_buffer(midi_uart_instance, rx, sizeof(rx));
+    uint8_t nread = pio_midi_uart_poll_rx_buffer(midi_uarts[port], rx, sizeof(rx));
     if (nread > 0)
     {
         // figure out where to send data from UART MIDI IN
-        for (auto &out_port : uart_midi_in_port.sends_data_to_list)
+        for (auto &out_port : uart_midi_in_port[port].sends_data_to_list)
         {
             if (out_port->devaddr != 0 && attached_devices[out_port->devaddr].configured)
             {
@@ -360,26 +360,34 @@ rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager, &wifi}, current_co
     // Map the pins to functions
     gpio_init(LED_GPIO);
     gpio_set_dir(LED_GPIO, GPIO_OUT);
-    midi_uart_instance = pio_midi_uart_create(MIDI_UART_A_TX_GPIO, MIDI_UART_A_RX_GPIO);
+    midi_uarts[0] = pio_midi_uart_create(MIDI_UART_A_TX_GPIO, MIDI_UART_A_RX_GPIO);
+    midi_uarts[1] = pio_midi_uart_create(MIDI_UART_B_TX_GPIO, MIDI_UART_B_RX_GPIO);
     while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT)
     {
         // flush out the console input buffer
     }
-    uart_midi_in_port.cable = 0;
-    uart_midi_in_port.devaddr = uart_devaddr;
-    uart_midi_in_port.sends_data_to_list.clear();
-    uart_midi_in_port.nickname = "MIDI IN A";
-    uart_midi_out_port.cable = 0;
-    uart_midi_out_port.devaddr = uart_devaddr;
-    uart_midi_out_port.nickname = "MIDI OUT A";
+    char in_name[] = "MIDI IN A";
+    char out_name[] = "MIDI OUT A";
+    for (uint8_t port=0; port < num_midi_uarts; port++) {
+        in_name[strlen(in_name)-1] = 'A' + port;
+        out_name[strlen(out_name)-1] = 'A' + port;
+        uart_midi_in_port[port].cable = port;
+        uart_midi_in_port[port].devaddr = uart_devaddr;
+        uart_midi_in_port[port].sends_data_to_list.clear();
+        uart_midi_in_port[port].nickname = in_name;
+        uart_midi_out_port[port].cable = port;
+        uart_midi_out_port[port].devaddr = uart_devaddr;
+        uart_midi_out_port[port].nickname = out_name;
+        midi_in_port_list.push_back(uart_midi_in_port + port);
+        midi_out_port_list.push_back(uart_midi_out_port + port);
+    }
     attached_devices[uart_devaddr].vid = 0;
     attached_devices[uart_devaddr].pid = 0;
-    attached_devices[uart_devaddr].product_name = "MIDI A";
-    attached_devices[uart_devaddr].rx_cables = 1;
-    attached_devices[uart_devaddr].tx_cables = 1;
+    attached_devices[uart_devaddr].product_name = "UART MIDI";
+    attached_devices[uart_devaddr].rx_cables = num_midi_uarts;
+    attached_devices[uart_devaddr].tx_cables = num_midi_uarts;
     attached_devices[uart_devaddr].configured = true;
-    midi_in_port_list.push_back(&uart_midi_in_port);
-    midi_out_port_list.push_back(&uart_midi_out_port);
+
     printf("Cli is running.\r\n");
     printf("Type \"help\" for a list of commands\r\n");
     printf("Use backspace and tab to remove chars and autocomplete\r\n");
@@ -447,10 +455,14 @@ void rppicomidi::Midi2usbhub::task()
 
     blink_led();
 
-    poll_midi_uart_rx();
+    for (uint8_t port=0; port < num_midi_uarts; port++) {
+        poll_midi_uart_rx(port);
+    }
     flush_usb_tx();
     poll_usb_rx();
-    pio_midi_uart_drain_tx_buffer(midi_uart_instance);
+    for (uint8_t port=0; port < num_midi_uarts; port++) {
+        pio_midi_uart_drain_tx_buffer(midi_uarts[port]);
+    }
 #ifdef RPPICOMIDI_PICO_W
     wifi.task();
     process_pending_cmds();
@@ -957,16 +969,17 @@ void rppicomidi::Midi2usbhub::tuh_midi_unmount_cb(uint8_t dev_addr, uint8_t)
             ++it;
         }
     }
-
-    for (std::vector<Midi_out_port *>::iterator it = uart_midi_in_port.sends_data_to_list.begin(); it != uart_midi_in_port.sends_data_to_list.end();)
-    {
-        if ((*it)->devaddr == dev_addr)
+    for (uint8_t port=0; port < num_midi_uarts; port++) {
+        for (std::vector<Midi_out_port *>::iterator it = uart_midi_in_port[port].sends_data_to_list.begin(); it != uart_midi_in_port[port].sends_data_to_list.end();)
         {
-            uart_midi_in_port.sends_data_to_list.erase(it);
-        }
-        else
-        {
-            ++it;
+            if ((*it)->devaddr == dev_addr)
+            {
+                uart_midi_in_port[port].sends_data_to_list.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
         }
     }
     for (std::vector<Midi_out_port *>::iterator it = midi_out_port_list.begin(); it != midi_out_port_list.end();)
@@ -1020,7 +1033,7 @@ void rppicomidi::Midi2usbhub::tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_pack
                                 tuh_midi_stream_write(out_port->devaddr, out_port->cable, buffer, bytes_read);
                             else
                             {
-                                uint8_t npushed = pio_midi_uart_write_tx_buffer(midi_uart_instance, buffer, bytes_read);
+                                uint8_t npushed = pio_midi_uart_write_tx_buffer(midi_uarts[out_port->cable], buffer, bytes_read);
                                 if (npushed != bytes_read)
                                 {
                                     TU_LOG1("Warning: Dropped %lu bytes sending to UART MIDI Out\r\n", bytes_read - npushed);

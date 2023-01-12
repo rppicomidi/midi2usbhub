@@ -61,7 +61,7 @@ namespace rppicomidi
         void blink_led();
         void poll_usb_rx();
         void flush_usb_tx();
-        void poll_midi_uart_rx();
+        void poll_midi_uart_rx(uint8_t port_num);
         /**
          * @brief construct a nickname string from the input parameters
          * 
@@ -97,7 +97,6 @@ namespace rppicomidi
             std::string nickname;
             std::vector<Midi_out_port *> sends_data_to_list;
         };
-        void *midi_uart_instance;
         void tuh_mount_cb(uint8_t dev_addr);
         void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t num_cables_rx, uint16_t num_cables_tx);
         void tuh_midi_unmount_cb(uint8_t dev_addr, uint8_t instance);
@@ -247,8 +246,11 @@ namespace rppicomidi
         static void prod_str_cb(tuh_xfer_t *xfer);
 
         // UART selection Pin mapping. You can move these for your design if you want to
-        static const uint MIDI_UART_A_TX_GPIO = 4;
-        static const uint MIDI_UART_A_RX_GPIO = 5;
+        static const uint MIDI_UART_A_TX_GPIO = 2;
+        static const uint MIDI_UART_A_RX_GPIO = 3;
+        static const uint MIDI_UART_B_TX_GPIO = 4;
+        static const uint MIDI_UART_B_RX_GPIO = 5;
+        static const size_t num_midi_uarts = 2;
         // On-board LED mapping. If no LED, set to NO_LED_GPIO
         static const uint NO_LED_GPIO = 255;
         static const uint LED_GPIO = 25;
@@ -259,12 +261,12 @@ namespace rppicomidi
         // device addresses start at 1. location 0 is unused
         // extra entry is for the UART MIDI Port
         Midi_device_info attached_devices[CFG_TUH_DEVICE_MAX + 2];
-
+        void* midi_uarts[num_midi_uarts];
         std::vector<Midi_out_port *> midi_out_port_list;
         std::vector<Midi_in_port *> midi_in_port_list;
 
-        Midi_in_port uart_midi_in_port;
-        Midi_out_port uart_midi_out_port;
+        Midi_in_port uart_midi_in_port[num_midi_uarts];
+        Midi_out_port uart_midi_out_port[num_midi_uarts];
         Midi2usbhub_cli cli;
         std::string json_connected_state;
         std::string json_current_settings;
