@@ -1,6 +1,3 @@
-[submodule "lib/midi_uart_lib"]
-	path = lib/midi_uart_lib
-	url = https://github.com/rppicomidi/midi_uart_lib.git
 [submodule "ext_lib/embedded-cli"]
 	path = ext_lib/embedded-cli
 	url = https://github.com/funbiscuit/embedded-cli.git
@@ -16,3 +13,9 @@
 [submodule "lib/pico-c-utilities"]
 	path = lib/pico-c-utilities
 	url = https://github.com/rppicomidi/pico-c-utilities
+[submodule "lib/pio_midi_uart_lib"]
+	path = lib/pio_midi_uart_lib
+	url = https://github.com/rppicomidi/pio_midi_uart_lib.git
+[submodule "lib/ring_buffer_lib"]
+	path = lib/ring_buffer_lib
+	url = https://github.com/rppicomidi/ring_buffer_lib.git

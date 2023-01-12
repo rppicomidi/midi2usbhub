@@ -246,13 +246,9 @@ namespace rppicomidi
         static void langid_cb(tuh_xfer_t *xfer);
         static void prod_str_cb(tuh_xfer_t *xfer);
 
-
-
         // UART selection Pin mapping. You can move these for your design if you want to
-        // Make sure all these values are consistent with your choice of midi_uart
-        static const uint MIDI_UART_NUM = 1;
-        static const uint MIDI_UART_TX_GPIO = 4;
-        static const uint MIDI_UART_RX_GPIO = 5;
+        static const uint MIDI_UART_A_TX_GPIO = 4;
+        static const uint MIDI_UART_A_RX_GPIO = 5;
         // On-board LED mapping. If no LED, set to NO_LED_GPIO
         static const uint NO_LED_GPIO = 255;
         static const uint LED_GPIO = 25;

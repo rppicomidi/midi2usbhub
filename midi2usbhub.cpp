@@ -33,7 +33,7 @@
 #include "midi2usbhub.h"
 #include "pico/stdlib.h"
 #include "pico/binary_info.h"
-#include "midi_uart_lib.h"
+#include "pio_midi_uart_lib.h"
 #include "bsp/board.h"
 #include "preset_manager.h"
 #include "diskio.h"
@@ -322,7 +322,7 @@ void rppicomidi::Midi2usbhub::poll_midi_uart_rx()
     uint8_t rx[48];
     // Pull any bytes received on the MIDI UART out of the receive buffer and
     // send them out via USB MIDI on virtual cable 0
-    uint8_t nread = midi_uart_poll_rx_buffer(midi_uart_instance, rx, sizeof(rx));
+    uint8_t nread = pio_midi_uart_poll_rx_buffer(midi_uart_instance, rx, sizeof(rx));
     if (nread > 0)
     {
         // figure out where to send data from UART MIDI IN
@@ -344,7 +344,7 @@ rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager, &wifi}, current_co
 {
     bi_decl(bi_program_description("Provide a USB host interface for Serial Port MIDI."));
     bi_decl(bi_1pin_with_name(LED_GPIO, "On-board LED"));
-    bi_decl(bi_2pins_with_names(MIDI_UART_TX_GPIO, "MIDI UART TX", MIDI_UART_RX_GPIO, "MIDI UART RX"));
+    bi_decl(bi_2pins_with_names(MIDI_UART_A_TX_GPIO, "MIDI UART TX", MIDI_UART_A_RX_GPIO, "MIDI UART RX"));
     board_init();
     printf("Pico MIDI Host to MIDI UART Adapter\r\n");
     tusb_init();
@@ -360,8 +360,7 @@ rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager, &wifi}, current_co
     // Map the pins to functions
     gpio_init(LED_GPIO);
     gpio_set_dir(LED_GPIO, GPIO_OUT);
-    midi_uart_instance = midi_uart_configure(MIDI_UART_NUM, MIDI_UART_TX_GPIO, MIDI_UART_RX_GPIO);
-    printf("Configured MIDI UART %u for 31250 baud\r\n", MIDI_UART_NUM);
+    midi_uart_instance = pio_midi_uart_create(MIDI_UART_A_TX_GPIO, MIDI_UART_A_RX_GPIO);
     while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT)
     {
         // flush out the console input buffer
@@ -451,7 +450,7 @@ void rppicomidi::Midi2usbhub::task()
     poll_midi_uart_rx();
     flush_usb_tx();
     poll_usb_rx();
-    midi_uart_drain_tx_buffer(midi_uart_instance);
+    pio_midi_uart_drain_tx_buffer(midi_uart_instance);
 #ifdef RPPICOMIDI_PICO_W
     wifi.task();
     process_pending_cmds();
@@ -1021,7 +1020,7 @@ void rppicomidi::Midi2usbhub::tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_pack
                                 tuh_midi_stream_write(out_port->devaddr, out_port->cable, buffer, bytes_read);
                             else
                             {
-                                uint8_t npushed = midi_uart_write_tx_buffer(midi_uart_instance, buffer, bytes_read);
+                                uint8_t npushed = pio_midi_uart_write_tx_buffer(midi_uart_instance, buffer, bytes_read);
                                 if (npushed != bytes_read)
                                 {
                                     TU_LOG1("Warning: Dropped %lu bytes sending to UART MIDI Out\r\n", bytes_read - npushed);
