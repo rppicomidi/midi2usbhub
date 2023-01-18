@@ -13,6 +13,8 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPICO_USE_MALLOC_MUTEX=1")
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/ext_lib/littlefs-lib ext_lib/littlefs-lib)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/ext_lib/fatfs/source)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/lib/pio_midi_uart_lib)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/lib/pico-ssd1306-mono-graphics-lib lib/pico-ssd1306-mono-graphics-lib)
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/lib/pico-mono-ui-lib lib/pico-mono-ui-lib)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/lib/rp2040_rtc)
 set(EMBEDDED_CLI_PATH ${CMAKE_CURRENT_LIST_DIR}/ext_lib/embedded-cli/lib/)
 add_executable(${target_proj}
@@ -35,9 +37,10 @@ target_include_directories(${target_proj} PRIVATE
 )
 
 target_link_options(${target_proj} PRIVATE -Xlinker --print-memory-usage)
-target_compile_options(${target_proj} PRIVATE -Wall -Wextra -DPICO_HEAP_SIZE=0x20000 -DCFG_TUSB_DEBUG=1)
+target_compile_options(${target_proj} PRIVATE -Wall -Wextra -DCFG_TUSB_DEBUG=1)
 target_link_libraries(${target_proj} pio_midi_uart_lib tinyusb_host tinyusb_board ring_buffer_lib pico_stdlib
-littlefs-lib msc_fatfs rp2040_rtc)
+ssd1306 ssd1306i2c text_box mono_graphics_lib ui_menu ui_view_manager ui_hid_keyboard ui_text_item_chooser
+ui_text_entry_box littlefs-lib msc_fatfs rp2040_rtc)
 if(DEFINED PICO_BOARD)
 if(${PICO_BOARD} MATCHES "pico_w")
 message("board is pico_w")
