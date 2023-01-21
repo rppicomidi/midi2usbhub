@@ -818,7 +818,7 @@ class StateManager {
                 if (respCode === 201) {
                     let data = JSON.parse(this.req.responseText);
                     if (data !== null && data.hasOwnProperty('result') && data['result'] === 'OK') {
-                        this.setup();
+                        this.reqMidiHubState();
                     }
                 }
                 else if (respCode === 400 || respCode === 404 || respCode === 429) {
