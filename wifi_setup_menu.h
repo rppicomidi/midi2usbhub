@@ -56,11 +56,13 @@ private:
     const char* get_on_off_text();
 
     static void country_callback(View* view, int selected_idx);
+    static void forget_ssid_cb(View* view, int selected_idx);
     static void toggle_wifi_init(View* view, View**);
     static void ssid_done_cb(View* view, bool ssid_ok_);
     const Mono_mono_font& font;
     Menu menu;
     Text_item_chooser_menu country_code_chooser;
+    Text_item_chooser_menu forget_ssid_chooser;
     Pico_w_connection_manager* wifi;
     View_manager* vm;
     Text_entry_box ssid_entry_view;

@@ -33,6 +33,7 @@ rppicomidi::Wifi_setup_menu::Wifi_setup_menu(Mono_graphics& screen_, Pico_w_conn
     font{screen.get_font_12()},
     menu{screen, static_cast<uint8_t>(font.height), font},
     country_code_chooser{screen, 0, this, country_callback},
+    forget_ssid_chooser{screen, 0, this, forget_ssid_cb},
     wifi{wifi_}, vm{vm_}, ssid_entry_view{screen, "Enter SSID", 32, "", this, ssid_done_cb, false},
     scan_view{screen, wifi, vm}
 {
@@ -64,10 +65,15 @@ void rppicomidi::Wifi_setup_menu::entry()
     auto ccc = new View_launch_menu_item(country_code_chooser, country, screen, font);
     menu.add_menu_item(ccc);
 
-    auto vlmi = new View_launch_menu_item(scan_view, "SSID Scan", screen, font);
+    auto vlmi = new View_launch_menu_item(scan_view, "SSID Scan...", screen, font);
     menu.add_menu_item(vlmi);
-    auto item = new Menu_item("Forget SSID", screen, font);
-    menu.add_menu_item(item);
+    forget_ssid_chooser.clear();
+    auto known_ssids = wifi->get_known_ssids();
+    for (auto known: known_ssids) {
+        forget_ssid_chooser.add_menu_item(new Menu_item(known.ssid.c_str(), screen, font));
+    }
+    vlmi = new View_launch_menu_item(forget_ssid_chooser, "Forget SSID...", screen, font);
+    menu.add_menu_item(vlmi);
     #if 0
     auto ssid_entry = new View_launch_menu_item(ssid_entry_view,"Hidden SSID", screen, font);
     menu.add_menu_item(ssid_entry);
@@ -135,4 +141,13 @@ void rppicomidi::Wifi_setup_menu::ssid_done_cb(View* view, bool ssid_ok_)
     else {
         printf("SSID Text Canceled\r\n");
     }
+}
+
+void rppicomidi::Wifi_setup_menu::forget_ssid_cb(View* view, int selected_idx)
+{
+    auto me = reinterpret_cast<Wifi_setup_menu*>(view);
+    if (selected_idx >= 0) {
+        me->wifi->erase_known_ssid_by_idx(selected_idx);
+    }
+
 }
