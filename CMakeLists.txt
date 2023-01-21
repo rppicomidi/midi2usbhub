@@ -24,6 +24,9 @@ add_executable(${target_proj}
     pico_fatfs_cli.cpp
     preset_manager_cli.cpp
     midi2usbhub_cli.cpp
+    home_screen.cpp
+    wifi_setup_menu.cpp
+    wifi_scan_menu.cpp
     ${EMBEDDED_CLI_PATH}/src/embedded_cli.c
     ${CMAKE_CURRENT_LIST_DIR}/ext_lib/parson/parson.c
 )

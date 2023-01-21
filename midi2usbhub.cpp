@@ -37,12 +37,14 @@
 #include "bsp/board.h"
 #include "preset_manager.h"
 #include "diskio.h"
+#include "hid_keyboard.h"
 #ifdef RPPICOMIDI_PICO_W
 #include "lwip/apps/httpd.h"
 #include "pico/cyw43_arch.h"
 #include "lwip/apps/fs.h"
 #include "main_lwipopts.h"
 #endif
+uint16_t rppicomidi::Midi2usbhub::render_done_mask = 0;
 
 JSON_Value* rppicomidi::Midi2usbhub::serialize_to_json()
 {
@@ -281,12 +283,12 @@ void rppicomidi::Midi2usbhub::blink_led()
     absolute_time_t now = get_absolute_time();
 
     int64_t diff = absolute_time_diff_us(previous_timestamp, now);
-    if (diff > 1000000)
-    {
+    if (diff > 1000000) {
         #ifndef RPPICOMIDI_PICO_W
         gpio_put(LED_GPIO, led_state);
         #else
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
+        if (wifi.get_state() != Pico_w_connection_manager::DEINITIALIZED)
+            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
         #endif
         led_state = !led_state;
         previous_timestamp = now;
@@ -295,8 +297,7 @@ void rppicomidi::Midi2usbhub::blink_led()
 
 void rppicomidi::Midi2usbhub::poll_usb_rx()
 {
-    for (auto &in_port : midi_in_port_list)
-    {
+    for (auto &in_port : midi_in_port_list) {
         // poll each connected MIDI IN port only once per device address
         if (in_port->devaddr != uart_devaddr && in_port->cable == 0 && tuh_midi_configured(in_port->devaddr))
             tuh_midi_read_poll(in_port->devaddr);
@@ -340,7 +341,10 @@ void rppicomidi::Midi2usbhub::poll_midi_uart_rx(uint8_t port)
     }
 }
 
-rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager, &wifi}, current_connection{nullptr}
+rppicomidi::Midi2usbhub::Midi2usbhub() : current_connection{nullptr}, cli{&preset_manager, &wifi}, 
+    addr{OLED_ADDR},
+    ssd1306{&i2c_driver_oled, 0, Ssd1306::Com_pin_cfg::ALT_DIS, 128, 64, 0, 0}, // set up the SSD1306 to drive at 128 x 64 oled
+    oled_screen{&ssd1306, Display_rotation::Landscape180}, home_screen{oled_screen, &wifi, &preset_manager, &oled_view_manager}
 {
     bi_decl(bi_program_description("Provide a USB host interface for Serial Port MIDI."));
     bi_decl(bi_1pin_with_name(LED_GPIO, "On-board LED"));
@@ -388,6 +392,19 @@ rppicomidi::Midi2usbhub::Midi2usbhub() : cli{&preset_manager, &wifi}, current_co
     attached_devices[uart_devaddr].tx_cables = num_midi_uarts;
     attached_devices[uart_devaddr].configured = true;
 
+    render_done_mask = 0;
+    int num_displays = 1;
+    uint16_t target_done_mask = (1<<(num_displays)) -1;
+    bool success = true;
+    oled_view_manager.push_view(&home_screen);
+    oled_screen.render_non_blocking(callback, 0);
+    while (success && render_done_mask != target_done_mask) {
+        if (success) {
+            success = oled_screen.task();
+        }
+    }
+    assert(success);
+    Hid_keyboard::instance().set_view_manager(&oled_view_manager);
     printf("Cli is running.\r\n");
     printf("Type \"help\" for a list of commands\r\n");
     printf("Use backspace and tab to remove chars and autocomplete\r\n");
@@ -468,6 +485,10 @@ void rppicomidi::Midi2usbhub::task()
     process_pending_cmds();
 #endif
     cli.task();
+    if (oled_screen.can_render()) {
+        oled_screen.render_non_blocking(nullptr, 0);
+    }
+    oled_screen.task();
 }
 
 void rppicomidi::Midi2usbhub::get_connected()
@@ -475,7 +496,15 @@ void rppicomidi::Midi2usbhub::get_connected()
     bool connected = false;
     // If successfully loaded settings, attempt to autoconnect now.
     if (wifi.load_settings()) {
-        wifi.autoconnect();
+        std::string ssid;
+        wifi.get_current_ssid(ssid);
+        if (ssid.size() > 0) {
+            wifi.autoconnect();
+            if (oled_view_manager.get_current_view() == &home_screen) {
+                home_screen.update_ipaddr_menu_item();
+                home_screen.draw();
+            }
+        }
     }
     while (!connected) {
         connected = wifi.get_state() == wifi.CONNECTED;

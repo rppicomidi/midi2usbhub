@@ -38,6 +38,13 @@
 #include "preset_manager.h"
 #include "pico_w_connection_manager.h"
 #include "midi2usbhub_cli.h"
+
+#include "mono_graphics_lib.h"
+#include "ssd1306i2c.h"
+#include "ssd1306.h"
+#include "view_manager.h"
+#include "home_screen.h"
+
 namespace rppicomidi
 {
     class Midi2usbhub
@@ -241,15 +248,14 @@ namespace rppicomidi
         void protect_from_lwip() {irq_set_enabled(IO_IRQ_BANK0, false);}
         void unprotect_from_lwip() {irq_set_enabled(IO_IRQ_BANK0, true);}
         Preset_manager preset_manager;
-        Pico_w_connection_manager wifi;
         static void langid_cb(tuh_xfer_t *xfer);
         static void prod_str_cb(tuh_xfer_t *xfer);
 
         // UART selection Pin mapping. You can move these for your design if you want to
-        static const uint MIDI_UART_A_TX_GPIO = 2;
-        static const uint MIDI_UART_A_RX_GPIO = 3;
-        static const uint MIDI_UART_B_TX_GPIO = 4;
-        static const uint MIDI_UART_B_RX_GPIO = 5;
+        static const uint MIDI_UART_A_TX_GPIO = 4;
+        static const uint MIDI_UART_A_RX_GPIO = 5;
+        static const uint MIDI_UART_B_TX_GPIO = 12;
+        static const uint MIDI_UART_B_RX_GPIO = 13;
         static const size_t num_midi_uarts = 2;
         // On-board LED mapping. If no LED, set to NO_LED_GPIO
         static const uint NO_LED_GPIO = 255;
@@ -267,10 +273,9 @@ namespace rppicomidi
 
         Midi_in_port uart_midi_in_port[num_midi_uarts];
         Midi_out_port uart_midi_out_port[num_midi_uarts];
-        Midi2usbhub_cli cli;
-        std::string json_connected_state;
-        std::string json_current_settings;
+
 #ifdef RPPICOMIDI_PICO_W
+        Pico_w_connection_manager wifi;
 
         /**
          * @brief Mark a command in the command list as free
@@ -299,5 +304,27 @@ namespace rppicomidi
         Pending_cmd pending_cmds[max_pending_cmds];
         void* last_post_error_connection;
 #endif
+        Midi2usbhub_cli cli;
+        std::string json_connected_state;
+        std::string json_current_settings;
+        const uint8_t OLED_ADDR=0x3c;   // the OLED I2C address as a constant
+        uint8_t addr[1];                // the OLED I2C address is stored here
+        const uint8_t MUX_ADDR=0;       // no I2C mux
+        uint8_t* mux_map=nullptr;       // no I2C mux
+        const uint8_t OLED_SCL_GPIO = 3;   // The OLED SCL pin
+        const uint8_t OLED_SDA_GPIO = 2;   // The OLED SDA pin
+
+        // the i2c driver object
+        Ssd1306i2c i2c_driver_oled{i2c1, addr, OLED_SDA_GPIO, OLED_SCL_GPIO, sizeof(addr), MUX_ADDR, mux_map};
+
+        Ssd1306 ssd1306;    // the SSD1306 driver object
+        Mono_graphics oled_screen; // the screen object
+        View_manager oled_view_manager; // the view manager object
+        static uint16_t render_done_mask;
+        static void callback(uint8_t display_num)
+        {
+            render_done_mask |= (1u << display_num);
+        }
+        Home_screen home_screen;
     };
 }

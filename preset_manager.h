@@ -28,6 +28,7 @@
  */
 #pragma once
 #include <string>
+#include <functional>
 #include "pico_hal.h"
 #include "embedded_cli.h"
 #include "ff.h"
@@ -99,6 +100,16 @@ public:
      * @return FRESULT FR_ERR_OK if successful, a FatFs error code if not
      */
     FRESULT restore_preset(const char* preset_name);
+
+    /**
+     * @brief call the callback function whenever the current preset changed
+     * by save or by load
+     * 
+     * @param callback the function to call
+     * @return size_t the index to use to unsubscribe
+     */
+    size_t subscribe(std::function<void(const std::string&)>& callback);
+    void unsubscribe(size_t idx);
 private:
     /**
      * @brief set raw_settings_ptr to point to the data contained in the settings
@@ -118,6 +129,7 @@ private:
 
     bool update_current_preset(std::string& preset_name, bool mount = true);
 
+    std::vector<std::function<void(const std::string&)>> current_preset_change_callbacks;
     std::string current_preset_name;
     static constexpr const char* preset_dir_name = "/rppicomidi-midi2usbhub";
     static constexpr const char* current_preset_filename = "current-preset";

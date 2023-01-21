@@ -142,7 +142,11 @@ bool rppicomidi::Preset_manager::update_current_preset(std::string& preset_name,
         if (mount)
             pico_unmount();
     }
-
+    if (result) {
+        for (auto callback: current_preset_change_callbacks) {
+            callback(current_preset_name);
+        }        
+    }
     return result;
 }
 
