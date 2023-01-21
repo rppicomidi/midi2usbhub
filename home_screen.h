@@ -32,6 +32,7 @@
 #include "preset_manager.h"
 #include "wifi_setup_menu.h"
 #include "callback_menu_item.h"
+#include "text_item_chooser_menu.h"
 namespace rppicomidi
 {
 class Home_screen : public View
@@ -58,10 +59,13 @@ private:
     // Get rid of default constructor and copy constructor
     Home_screen() = delete;
     Home_screen(Home_screen&) = delete;
+    void update_current_preset();
     static void ipaddr_callback(View*, View**);
     static void link_up_cb(void* context_);
     static void link_down_cb(void* context_);
     static void link_err_cb(void* context_, const char*);
+    static void preset_chooser_cb(View* context_, int idx);
+    static void preset_change_cb(void* context_);
     const Mono_mono_font& font;
     Menu menu;
     Pico_w_connection_manager* wifi;
@@ -69,6 +73,8 @@ private:
     View_manager* vm;
     Wifi_setup_menu wifi_setup;
     Callback_menu_item* ipaddr_item;
-    Menu_item* preset_item;
+    View_launch_menu_item* preset_item;
+    Text_item_chooser_menu preset_chooser;
+    std::vector<std::string> presets;
 };
 }

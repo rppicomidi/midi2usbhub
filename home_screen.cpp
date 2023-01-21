@@ -29,14 +29,52 @@ rppicomidi::Home_screen::Home_screen(Mono_graphics& screen_, Pico_w_connection_m
     View{screen_, screen_.get_clip_rect()},
     font{screen.get_font_12()},
     menu{screen, static_cast<uint8_t>(font.height*2+4), font},
-    wifi{wifi_}, pm{pm_}, vm{vm_}, wifi_setup{screen, wifi, vm}
+    wifi{wifi_}, pm{pm_}, vm{vm_}, wifi_setup{screen, wifi, vm},
+    preset_chooser{screen, 0, this, preset_chooser_cb}
 {
     ipaddr_item = new Callback_menu_item("",screen, font, this, ipaddr_callback);
     menu.add_menu_item(ipaddr_item);
     auto item = new View_launch_menu_item(wifi_setup, "Wi-Fi setup...", screen, font);
     menu.add_menu_item(item);
-    preset_item = new Menu_item("No Preset",screen, font);
+    preset_item = new View_launch_menu_item(preset_chooser, "Preset: No Preset", screen, font);
+    preset_item->set_disabled(true);
     menu.add_menu_item(preset_item);
+}
+
+void rppicomidi::Home_screen::update_current_preset()
+{
+    preset_chooser.clear();
+    presets.clear();
+    pm->get_preset_list(presets);
+    std::string current;
+    pm->get_current_preset_name(current);
+    current = current.substr(0, current.find_last_of('.'));
+    if (presets.size() > 0) {
+        int idx = 0;
+        int jdx = 0;
+        for (auto preset: presets) {
+            auto item = new Menu_item(preset.c_str(), screen, font);
+            preset_chooser.add_menu_item(item);
+            if (preset == current) {
+                idx = jdx;
+            }
+            ++jdx;
+        }
+        preset_chooser.set_current_item_idx(idx);
+        preset_item->set_text((std::string("Preset: ") + presets.at(idx)).c_str());
+        preset_item->set_disabled(false);
+    }
+    else {
+        preset_item->set_disabled(true);
+        preset_item->set_text("Preset: No Preset");
+    }
+}
+
+void rppicomidi::Home_screen::preset_change_cb(void* context_)
+{
+    auto me = reinterpret_cast<Home_screen*>(context_);
+    me->update_current_preset();
+    me->draw();
 }
 
 void rppicomidi::Home_screen::entry()
@@ -44,7 +82,11 @@ void rppicomidi::Home_screen::entry()
     wifi->register_link_up_callback(link_up_cb, this);
     wifi->register_link_down_callback(link_down_cb, this);
     wifi->register_link_error_callback(link_err_cb, this);
+    pm->register_current_preset_change_cb(this, preset_change_cb);
+    pm->register_preset_list_change_cb(this, preset_change_cb);
+
     update_ipaddr_menu_item();
+    update_current_preset();
     menu.entry();
 }
 
@@ -53,6 +95,8 @@ void rppicomidi::Home_screen::exit()
     wifi->register_link_up_callback(nullptr, nullptr);
     wifi->register_link_down_callback(nullptr, nullptr);
     wifi->register_link_error_callback(nullptr, nullptr);
+    pm->register_current_preset_change_cb(nullptr, nullptr);
+    pm->register_preset_list_change_cb(nullptr, nullptr);
 }
 
 void rppicomidi::Home_screen::link_up_cb(void* context_)
@@ -172,4 +216,11 @@ void rppicomidi::Home_screen::draw()
 rppicomidi::Home_screen::Select_result rppicomidi::Home_screen::on_select(View** new_view)
 {
     return menu.on_select(new_view);
+}
+
+void rppicomidi::Home_screen::preset_chooser_cb(View* context_, int idx)
+{
+    auto me = reinterpret_cast<Home_screen*>(context_);
+    if (idx >=0 && idx < (int)me->presets.size())
+        me->pm->load_preset(me->presets.at(idx)+".json");
 }

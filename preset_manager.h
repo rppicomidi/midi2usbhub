@@ -76,7 +76,16 @@ public:
         return current_preset_name.substr(0, current_preset_name.find_last_of('.')).c_str();
     }
 
+    /**
+     * @brief add the list of preset names to the JSON root object
+     *
+     * @param root_object the object that will receive the serialzed value
+     * @return int LFS_ERR_OK if successful, an error code otherwise
+     */
     int serialize_preset_list_to_json(JSON_Object* root_object);
+
+    int get_preset_list(std::vector<std::string>& presets);
+
     /**
      * @brief Copy all presets to USB flash drive
      * 
@@ -101,15 +110,8 @@ public:
      */
     FRESULT restore_preset(const char* preset_name);
 
-    /**
-     * @brief call the callback function whenever the current preset changed
-     * by save or by load
-     * 
-     * @param callback the function to call
-     * @return size_t the index to use to unsubscribe
-     */
-    size_t subscribe(std::function<void(const std::string&)>& callback);
-    void unsubscribe(size_t idx);
+    void register_current_preset_change_cb(void* context, void (*cb)(void* context_)) {current_preset_changed.context = context; current_preset_changed.cb = cb; }
+    void register_preset_list_change_cb(void* context, void (*cb)(void* context_)) { preset_list_changed.context = context; preset_list_changed.cb = cb; }
 private:
     /**
      * @brief set raw_settings_ptr to point to the data contained in the settings
@@ -129,8 +131,15 @@ private:
 
     bool update_current_preset(std::string& preset_name, bool mount = true);
 
-    std::vector<std::function<void(const std::string&)>> current_preset_change_callbacks;
+    struct Changed_cb {
+        Changed_cb() : context{nullptr}, cb{nullptr} {}
+        void* context;
+        void (*cb)(void*);
+    };
+
     std::string current_preset_name;
+    Changed_cb current_preset_changed;
+    Changed_cb preset_list_changed;
     static constexpr const char* preset_dir_name = "/rppicomidi-midi2usbhub";
     static constexpr const char* current_preset_filename = "current-preset";
 };

@@ -32,6 +32,7 @@
 #include "rp2040_rtc.h"
 rppicomidi::Preset_manager::Preset_manager()
 {
+    current_preset_name = "No Preset.";
     // Make sure the flash filesystem is working
     int error_code = pico_mount(false);
     if (error_code != 0) {
@@ -142,10 +143,8 @@ bool rppicomidi::Preset_manager::update_current_preset(std::string& preset_name,
         if (mount)
             pico_unmount();
     }
-    if (result) {
-        for (auto callback: current_preset_change_callbacks) {
-            callback(current_preset_name);
-        }        
+    if (result && current_preset_changed.cb) {
+        current_preset_changed.cb(current_preset_changed.context);
     }
     return result;
 }
@@ -218,6 +217,9 @@ bool rppicomidi::Preset_manager::load_preset(std::string preset_name)
         }        
         delete[] raw_preset_string;
         Midi2usbhub::instance().update_json_connected_state();
+        if (current_preset_changed.cb) {
+            current_preset_changed.cb(current_preset_changed.context);
+        }
     }
     else {
         printf("error %s loading settings %s\r\n", pico_errmsg(error_code), preset_name.c_str());
@@ -237,6 +239,9 @@ bool rppicomidi::Preset_manager::delete_preset(std::string filename)
         }
         else {
             Midi2usbhub::instance().update_json_connected_state();
+            if (preset_list_changed.cb) {
+                preset_list_changed.cb(preset_list_changed.context);
+            }
         }
     }
     return error_code == LFS_ERR_OK;
@@ -255,6 +260,9 @@ bool rppicomidi::Preset_manager::remame_preset(std::string old_preset_name, std:
         }
         else {
             Midi2usbhub::instance().update_json_connected_state();
+            if (preset_list_changed.cb) {
+                preset_list_changed.cb(preset_list_changed.context);
+            }
         }
     }
     return error_code == LFS_ERR_OK;
@@ -338,7 +346,7 @@ FRESULT rppicomidi::Preset_manager::backup_preset(const char* preset_name, bool 
     return res;
 }
 
-int rppicomidi::Preset_manager::serialize_preset_list_to_json(JSON_Object* root_object)
+int rppicomidi::Preset_manager::get_preset_list(std::vector<std::string>& presets)
 {
     int error_code = pico_mount(false);
     if (error_code != LFS_ERR_OK) {
@@ -353,7 +361,6 @@ int rppicomidi::Preset_manager::serialize_preset_list_to_json(JSON_Object* root_
         return error_code;
     }
     struct lfs_info info;
-    std::vector<std::string> presets;
     while (true) {
         lfs_ssize_t nread = lfs_dir_read(&dir, &info);
         if (nread < 0) {
@@ -374,6 +381,13 @@ int rppicomidi::Preset_manager::serialize_preset_list_to_json(JSON_Object* root_
     }
 
     error_code = lfs_dir_close(&dir);
+    return error_code;
+}
+
+int rppicomidi::Preset_manager::serialize_preset_list_to_json(JSON_Object* root_object)
+{
+    std::vector<std::string> presets;
+    int error_code = get_preset_list(presets);
     if (error_code == LFS_ERR_OK) {
         JSON_Value *pre_val = json_value_init_array();
         JSON_Array *pre_array = json_value_get_array(pre_val);
@@ -467,6 +481,10 @@ FRESULT rppicomidi::Preset_manager::restore_preset(const char* preset_name)
     }
     else {
         printf("preset %s restored\r\n", preset_name);
+        Midi2usbhub::instance().update_json_connected_state();
+        if (preset_list_changed.cb) {
+            preset_list_changed.cb(preset_list_changed.context);
+        }
     }
     return FR_OK;
 }
