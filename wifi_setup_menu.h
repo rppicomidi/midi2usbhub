@@ -33,6 +33,7 @@
 #include "text_item_chooser_menu.h"
 #include "text_entry_box.h"
 #include "wifi_scan_menu.h"
+#include "wifi_manual_setup_view.h"
 namespace rppicomidi
 {
 class Wifi_setup_menu : public View
@@ -67,5 +68,6 @@ private:
     View_manager* vm;
     Text_entry_box ssid_entry_view;
     Wifi_scan_menu scan_view;
+    Wifi_manual_setup_view manual_view;
 };
 }

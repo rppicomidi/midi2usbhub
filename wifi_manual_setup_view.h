@@ -1,6 +1,6 @@
 /**
  * Copyright (c) 2023 rppicomidi
- * 
+ *
  * The MIT License (MIT)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,42 +19,47 @@
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE. 
+ * SOFTWARE.
  */
 
 #pragma once
 #include "view.h"
-#include "pico_w_connection_manager.h"
-#include "text_item_chooser_menu.h"
 #include "text_entry_box.h"
+#include "text_item_chooser_menu.h"
+#include "pico_w_connection_manager.h"
 #include "view_manager.h"
-namespace rppicomidi
-{
-class Wifi_scan_menu : public View
+
+namespace rppicomidi {
+class Wifi_manual_setup_view : public View
 {
 public:
-    Wifi_scan_menu() = delete;
-    ~Wifi_scan_menu() = default;
-    Wifi_scan_menu(Mono_graphics& screen_, Pico_w_connection_manager* wifi_, View_manager* vm_);
+    Wifi_manual_setup_view() = delete;
+    ~Wifi_manual_setup_view() = default;
+    Wifi_manual_setup_view(Mono_graphics& screen_, Pico_w_connection_manager* wifi_, View_manager* vm_);
+
     void entry() final;
-    void exit() final;
+    //void exit() final;
     void draw() final;
     Select_result on_select(View** new_view) final;
+    void on_left(uint32_t delta, bool is_shifted) final;
+    void on_right(uint32_t delta, bool is_shifted) final;
     void on_increment(uint32_t delta, bool is_shifted) final;
     void on_decrement(uint32_t delta, bool is_shifted) final;
-private: 
+    void on_key(uint8_t key_code, uint8_t modifiers, bool pressed) final;
+private:
     static void ssid_select_cb(View* context, int idx);
-    static void scan_complete_cb(void* context_);
-    static void link_up_cb(void* context_);
-    static void link_down_cb(void* context_);
-    static void link_err_cb(void* context_, const char* err_);
-    static void password_cb(View* context_, bool selected_);
+    static void ssid_cb(View*, bool);
+    static void password_cb(View*, bool);
     Mono_mono_font font;
     Pico_w_connection_manager* wifi;
     View_manager* vm;
     Text_item_chooser_menu ssids;
-    std::vector<cyw43_ev_scan_result_t> last_scan_results;
+    std::vector<Pico_w_connection_manager::Ssid_info> known_ssids;
     int selected_ssid_idx;
+    Text_entry_box ssid;
     Text_entry_box password;
+    int auth;
+    std::string new_ssid;
+    enum Manual_state {Saved_or_new, Entering_ssid, Entering_password} state;
 };
 }

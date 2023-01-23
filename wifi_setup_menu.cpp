@@ -35,7 +35,8 @@ rppicomidi::Wifi_setup_menu::Wifi_setup_menu(Mono_graphics& screen_, Pico_w_conn
     country_code_chooser{screen, 0, this, country_callback},
     forget_ssid_chooser{screen, 0, this, forget_ssid_cb},
     wifi{wifi_}, vm{vm_}, ssid_entry_view{screen, "Enter SSID", 32, "", this, ssid_done_cb, false},
-    scan_view{screen, wifi, vm}
+    scan_view{screen, wifi, vm},
+    manual_view{screen, wifi, vm}
 {
 }
 
@@ -74,10 +75,10 @@ void rppicomidi::Wifi_setup_menu::entry()
     }
     vlmi = new View_launch_menu_item(forget_ssid_chooser, "Forget SSID...", screen, font);
     menu.add_menu_item(vlmi);
-    #if 0
-    auto ssid_entry = new View_launch_menu_item(ssid_entry_view,"Hidden SSID", screen, font);
-    menu.add_menu_item(ssid_entry);
-    #endif
+
+    vlmi = new View_launch_menu_item(manual_view, "Manual SSID...", screen, font);
+    menu.add_menu_item(vlmi);
+
     menu.entry();
 }
 

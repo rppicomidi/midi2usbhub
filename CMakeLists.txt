@@ -27,6 +27,7 @@ add_executable(${target_proj}
     home_screen.cpp
     wifi_setup_menu.cpp
     wifi_scan_menu.cpp
+    wifi_manual_setup_view.cpp
     ${EMBEDDED_CLI_PATH}/src/embedded_cli.c
     ${CMAKE_CURRENT_LIST_DIR}/ext_lib/parson/parson.c
 )

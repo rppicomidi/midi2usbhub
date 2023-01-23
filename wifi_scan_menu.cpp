@@ -30,8 +30,7 @@ rppicomidi::Wifi_scan_menu::Wifi_scan_menu(Mono_graphics& screen_, Pico_w_connec
     wifi{wifi_}, vm{vm_},
     ssids{screen, (uint8_t)(font.height*2+4), this, ssid_select_cb},
     selected_ssid_idx{-1},
-    password{screen, "Password", 64, "\t", this, password_cb, false},
-    password_mode{false}
+    password{screen, "Password", 64, "\t", this, password_cb, false}
 {
 
 }
@@ -114,10 +113,8 @@ void rppicomidi::Wifi_scan_menu::draw()
     }
     else if (state == wifi->SCAN_COMPLETE) {
         int idx = ssids.get_current_item_idx();
-        char ssid[33];
-        memcpy(ssid, last_scan_results[idx].ssid, last_scan_results[idx].ssid_len);
-        ssid[last_scan_results[idx].ssid_len] = '\0';
-        screen.center_string_on_two_lines(font, ssid, 0);
+        std::string ssid{(const char*)(last_scan_results[idx].ssid), last_scan_results[idx].ssid_len};
+        screen.center_string_on_two_lines(font, ssid.c_str(), 0);
         ssids.draw();
     }
     else if (state == wifi->CONNECTED || state == wifi->CONNECTION_REQUESTED) {
@@ -146,13 +143,11 @@ void rppicomidi::Wifi_scan_menu::ssid_select_cb(View* context_, int idx_)
     auto me = reinterpret_cast<Wifi_scan_menu*>(context_);
     me->selected_ssid_idx = idx_;
     if (me->selected_ssid_idx >= 0) {
-        char ssid[33];
-        memcpy(ssid, me->last_scan_results[idx_].ssid, me->last_scan_results[idx_].ssid_len);
-        ssid[me->last_scan_results[idx_].ssid_len] = '\0';
+        std::string ssid{(const char*)(me->last_scan_results[idx_].ssid), me->last_scan_results[idx_].ssid_len};
 
         if (me->last_scan_results[idx_].auth_mode == Pico_w_connection_manager::OPEN) {
             // we have all the info we need to request a connection
-            me->wifi->set_current_ssid(std::string(ssid));
+            me->wifi->set_current_ssid(ssid);
             me->wifi->set_current_security(me->last_scan_results[idx_].auth_mode);
 
             me->wifi->set_current_passphrase("");
@@ -182,12 +177,10 @@ void rppicomidi::Wifi_scan_menu::password_cb(View* context_, bool selected_)
     const char* pw = me->password.get_text();
     if (selected_ && pw && strlen(pw) > 0) {
         size_t idx = me->selected_ssid_idx;
-        char ssid[33];
-        memcpy(ssid,me->last_scan_results[idx].ssid, me->last_scan_results[idx].ssid_len);
-        ssid[me->last_scan_results[idx].ssid_len] = '\0';
+        std::string ssid{(const char*)(me->last_scan_results[idx].ssid), me->last_scan_results[idx].ssid_len};
 
         // we have all the info we need to request a connection
-        me->wifi->set_current_ssid(std::string(ssid));
+        me->wifi->set_current_ssid(ssid);
         me->wifi->set_current_security(me->last_scan_results[idx].auth_mode);
         me->wifi->set_current_passphrase(std::string(pw));
         me->wifi->connect();
