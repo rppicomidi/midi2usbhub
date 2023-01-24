@@ -41,6 +41,7 @@ public:
     //void exit() final;
     void draw() final;
     Select_result on_select(View** new_view) final;
+    Select_result on_back(View** new_view) final;
     void on_left(uint32_t delta, bool is_shifted) final;
     void on_right(uint32_t delta, bool is_shifted) final;
     void on_increment(uint32_t delta, bool is_shifted) final;

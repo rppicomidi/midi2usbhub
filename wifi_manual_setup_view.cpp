@@ -118,6 +118,7 @@ void rppicomidi::Wifi_manual_setup_view::ssid_cb(View* context_, bool select_)
             // need to get a password
             me->ssid.exit();
             me->state = Entering_password;
+            me->password.set_text("");
             me->vm->push_view(&(me->password));
         }
     }
@@ -154,6 +155,25 @@ rppicomidi::View::Select_result rppicomidi::Wifi_manual_setup_view::on_select(Vi
         break;
     case Entering_ssid:
         ssid.on_select(new_view);
+        break;
+    case Entering_password:
+        password.on_select(new_view);
+        break;
+    }
+    return no_op;
+}
+
+rppicomidi::View::Select_result rppicomidi::Wifi_manual_setup_view::on_back(View** new_view)
+{
+    switch(state) {
+    default:
+    case Saved_or_new:
+        return Select_result::exit_view;
+        break;
+    case Entering_ssid:
+        state = Saved_or_new;
+        ssid.set_text("");
+        draw();
         break;
     case Entering_password:
         password.on_select(new_view);
