@@ -44,9 +44,7 @@ void rppicomidi::Wifi_scan_menu::entry()
     wifi->register_link_error_callback(link_err_cb, this);
     last_scan_results.clear();
     selected_ssid_idx = -1;
-    auto state = wifi->get_state();
-    if (state == wifi->INITIALIZED || state == wifi->SCAN_COMPLETE /*SCAN_COMPLETE means canceled password*/)
-        wifi->start_scan();
+    wifi->start_scan();
 }
 
 void rppicomidi::Wifi_scan_menu::exit()
@@ -99,6 +97,7 @@ void rppicomidi::Wifi_scan_menu::draw()
     if (state == wifi->SCAN_REQUESTED || state == wifi->SCANNING) {
         screen.center_string(font, "Scanning...",font.height);
     }
+    #if 0
     else if (state == wifi->INITIALIZED) {
         auto err = wifi->get_last_link_error();
         if (strlen(err) > 0) {
@@ -111,12 +110,14 @@ void rppicomidi::Wifi_scan_menu::draw()
             screen.center_string(font, "Wi-Fi On",font.height);
         }
     }
+    #endif
     else if (state == wifi->SCAN_COMPLETE) {
         int idx = ssids.get_current_item_idx();
         std::string ssid{(const char*)(last_scan_results[idx].ssid), last_scan_results[idx].ssid_len};
         screen.center_string_on_two_lines(font, ssid.c_str(), 0);
         ssids.draw();
     }
+    #if 0
     else if (state == wifi->CONNECTED || state == wifi->CONNECTION_REQUESTED) {
         std::string ssid;
         wifi->get_current_ssid(ssid);
@@ -136,6 +137,7 @@ void rppicomidi::Wifi_scan_menu::draw()
         const char* err = "Turn On Wi-Fi first";
         screen.center_string(font, err, 26);
     }
+    #endif
 }
 
 void rppicomidi::Wifi_scan_menu::ssid_select_cb(View* context_, int idx_)
@@ -153,7 +155,7 @@ void rppicomidi::Wifi_scan_menu::ssid_select_cb(View* context_, int idx_)
             me->wifi->set_current_passphrase("");
             me->wifi->connect();
             // Connection requested;
-            me->vm->pop_view();            
+            me->vm->go_home();
         }
         else {
             // Go get a password; pre-populate with the last known password for this SSID
@@ -185,7 +187,7 @@ void rppicomidi::Wifi_scan_menu::password_cb(View* context_, bool selected_)
         me->wifi->set_current_passphrase(std::string(pw));
         me->wifi->connect();
         // Connection requested;
-        //me->vm->pop_view();
+        me->vm->go_home();
     }
 }
 
