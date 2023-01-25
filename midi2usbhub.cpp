@@ -173,16 +173,20 @@ bool rppicomidi::Midi2usbhub::deserialize(const std::string &serialized_string)
                         }
                     }
                     else {
+                        // either
                         // poorly formatted JSON
-                        json_value_free(root_value);
-                        return false;
+                        // or just plugged in a new device not in the preset; ignore it
+                        //json_value_free(root_value);
+                        //return false;
                     }
                 }
             }
             else {
+                // either
                 // poorly formatted JSON
-                json_value_free(root_value);
-                return false;
+                // or just plugged in a new device not in the preset; ignore it
+                //json_value_free(root_value);
+                //return false;
             }
         }
     }
