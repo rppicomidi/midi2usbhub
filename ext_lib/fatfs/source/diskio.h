@@ -133,7 +133,7 @@ void msc_fat_wait_transfer_complete();
  * @return true if transfer was successful
  * @return false if the transfer failed or there was a phase error
  */
-bool msc_fat_complete_cb(uint8_t dev_addr, msc_cbw_t const* cbw, msc_csw_t const* csw);
+bool msc_fat_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const* cb_data);
 
 /**
  * @brief convert a USB device address to a physical drive number

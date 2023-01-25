@@ -168,12 +168,11 @@ void msc_fat_wait_transfer_complete()
     }
 }
 
-bool msc_fat_complete_cb(uint8_t dev_addr, msc_cbw_t const *cbw, msc_csw_t const *csw)
+bool msc_fat_complete_cb(uint8_t dev_addr, tuh_msc_complete_data_t const* cb_data)
 {
     // TODO does the msc_fat_status have to be address dependent?
     (void)dev_addr;
-    (void)cbw;
-    if (csw->status == MSC_CSW_STATUS_PASSED)
+    if (cb_data->csw->status == MSC_CSW_STATUS_PASSED)
     {
         msc_fat_set_status(MSC_FAT_COMPLETE);
     }
@@ -181,7 +180,7 @@ bool msc_fat_complete_cb(uint8_t dev_addr, msc_cbw_t const *cbw, msc_csw_t const
     {
         msc_fat_set_status(MSC_FAT_ERROR);
     }
-    return csw->status == MSC_CSW_STATUS_PASSED;
+    return cb_data->csw->status == MSC_CSW_STATUS_PASSED;
 }
 
 /*-----------------------------------------------------------------------*/
@@ -242,7 +241,7 @@ DRESULT disk_read(
             assert(msc_fat_get_xfer_status() == MSC_FAT_COMPLETE);
             uint8_t dev_addr = mmc_pdrv_to_daddr(pdrv);
             msc_fat_set_status(MSC_FAT_IN_PROGRESS);
-            if (!tuh_msc_read10(dev_addr, 0, buff, sector, count, msc_fat_complete_cb))
+            if (!tuh_msc_read10(dev_addr, 0, buff, sector, count, msc_fat_complete_cb, 0))
             {
                 res = RES_ERROR;
             }
@@ -288,7 +287,7 @@ DRESULT disk_write(
             assert(msc_fat_get_xfer_status() == MSC_FAT_COMPLETE);
             uint8_t dev_addr = mmc_pdrv_to_daddr(pdrv);
             msc_fat_set_status(MSC_FAT_IN_PROGRESS);
-            if (!tuh_msc_write10(dev_addr, 0, buff, sector, count, msc_fat_complete_cb))
+            if (!tuh_msc_write10(dev_addr, 0, buff, sector, count, msc_fat_complete_cb, 0))
             {
                 res = RES_ERROR;
             }
