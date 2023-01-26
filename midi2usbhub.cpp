@@ -872,63 +872,21 @@ void rppicomidi::Midi2usbhub::process_pending_cmds()
     }
     unprotect_from_lwip();
 }
+
+void rppicomidi::Midi2usbhub::screenshot()
+{
+    int nbytes = oled_screen.get_bmp_file_data_size();
+    auto bmp = oled_screen.make_bmp_file_data();
+    if (bmp) {
+        preset_manager.save_screenshot(bmp, nbytes);
+        delete[] bmp;
+    }
+
+}
+
 //--------------------------------------------------------------------+
 // TinyUSB Callbacks
 //--------------------------------------------------------------------+
-static uint16_t dev_string_buffer[128];
-static uint16_t langid;
-void rppicomidi::Midi2usbhub::prod_str_cb(tuh_xfer_t *xfer)
-{
-    if (xfer->actual_len >= 4 /* long enough for at least one character*/)
-    {
-        size_t nchars = (xfer->actual_len - 2) / 2;
-        char str[nchars + 1];
-        uint16_t *utf16le = (uint16_t *)(xfer->buffer + 2);
-        for (size_t idx = 0; idx < nchars; idx++)
-        {
-            str[idx] = (uint8_t)utf16le[idx];
-        }
-        str[nchars] = '\0';
-        auto devinfo = reinterpret_cast<rppicomidi::Midi2usbhub::Midi_device_info *>(xfer->user_data);
-        devinfo->product_name = std::string(str);
-
-        for (auto &midi_in : instance().midi_in_port_list)
-        {
-            if (midi_in->devaddr == xfer->daddr)
-            {
-                instance().make_default_nickname(midi_in->nickname, instance().attached_devices[xfer->daddr].vid,
-                                                 instance().attached_devices[xfer->daddr].pid,
-                                                 midi_in->cable, true);
-            }
-        }
-        for (auto &midi_out : instance().midi_out_port_list)
-        {
-            if (midi_out->devaddr == xfer->daddr)
-            {
-                instance().make_default_nickname(midi_out->nickname, instance().attached_devices[xfer->daddr].vid,
-                                                 instance().attached_devices[xfer->daddr].pid,
-                                                 midi_out->cable, false);
-            }
-        }
-        std::string current;
-        instance().preset_manager.get_current_preset_name(current);
-        if (current.length() < 1 || !instance().preset_manager.load_preset(current)) {
-            printf("current preset load failed.\r\n");
-        }
-        devinfo->configured = true;
-        instance().update_json_connected_state();
-    }
-}
-
-void rppicomidi::Midi2usbhub::langid_cb(tuh_xfer_t *xfer)
-{
-    if (xfer->actual_len >= 4 /*length, type, and one lang ID*/)
-    {
-        langid = *((uint16_t *)(xfer->buffer + 2));
-        tuh_descriptor_get_product_string(xfer->daddr, langid, dev_string_buffer, sizeof(dev_string_buffer), rppicomidi::Midi2usbhub::prod_str_cb, xfer->user_data);
-    }
-}
-
 void rppicomidi::Midi2usbhub::tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t num_cables_rx, uint16_t num_cables_tx)
 {
     (void)in_ep;
@@ -961,13 +919,54 @@ void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t 
 
 void rppicomidi::Midi2usbhub::tuh_mount_cb(uint8_t dev_addr)
 {
-    // Don't need to fetch the product string if this is notification for MSC drive
-    if (msc_fat_is_plugged_in(dev_addr-1))
+    // Don't need to fetch the product string if this is notification for MSC drive or HID device
+    if (msc_fat_is_plugged_in(dev_addr-1) || tuh_hid_instance_count(dev_addr) != 0)
         return;
 
+    // Get the VID, PID and Product String info for all MIDI devices
     tuh_vid_pid_get(dev_addr, &attached_devices[dev_addr].vid, &attached_devices[dev_addr].pid);
 
-    tuh_descriptor_get_string(dev_addr, 0, 0, dev_string_buffer, sizeof(dev_string_buffer), langid_cb, (uintptr_t)(attached_devices + dev_addr));
+    //tuh_descriptor_get_string(dev_addr, 0, 0, dev_string_buffer, sizeof(dev_string_buffer), langid_cb, (uintptr_t)(attached_devices + dev_addr));
+
+    // use blocking API
+    uint16_t dev_string_buffer[128];
+    uint16_t langid = 0;
+    if (0 == tuh_descriptor_get_string_sync(dev_addr, 0, 0, dev_string_buffer, sizeof(dev_string_buffer))) {
+        langid = dev_string_buffer[1];
+        memset(dev_string_buffer,0, sizeof(dev_string_buffer));
+        if (0 == tuh_descriptor_get_product_string_sync(dev_addr, langid, dev_string_buffer, sizeof(dev_string_buffer))) {
+            char str[128];
+            memset(str, 0, 128);
+            for (size_t idx = 1; idx < sizeof(dev_string_buffer)/ sizeof(dev_string_buffer[0]) && dev_string_buffer[idx]; idx++) {
+                str[idx-1] = dev_string_buffer[idx];
+            }
+            str[127] = '\0'; // just in case;
+            auto devinfo = attached_devices+dev_addr;
+            devinfo->product_name = std::string(str);
+
+            for (auto &midi_in : instance().midi_in_port_list) {
+                if (midi_in->devaddr == dev_addr) {
+                    instance().make_default_nickname(midi_in->nickname, instance().attached_devices[dev_addr].vid,
+                                                    instance().attached_devices[dev_addr].pid,
+                                                    midi_in->cable, true);
+                }
+            }
+            for (auto &midi_out : instance().midi_out_port_list) {
+                if (midi_out->devaddr == dev_addr) {
+                    instance().make_default_nickname(midi_out->nickname, instance().attached_devices[dev_addr].vid,
+                                                    instance().attached_devices[dev_addr].pid,
+                                                    midi_out->cable, false);
+                }
+            }
+            std::string current;
+            instance().preset_manager.get_current_preset_name(current);
+            if (current.length() < 1 || !instance().preset_manager.load_preset(current)) {
+                printf("current preset load failed.\r\n");
+            }
+            devinfo->configured = true;
+            instance().update_json_connected_state();
+        }
+    }
 }
 
 void tuh_mount_cb(uint8_t dev_addr)
@@ -1094,5 +1093,3 @@ void tuh_midi_tx_cb(uint8_t dev_addr)
 {
     (void)dev_addr;
 }
-
-

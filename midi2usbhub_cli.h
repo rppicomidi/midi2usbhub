@@ -38,7 +38,7 @@ public:
     ~Midi2usbhub_cli()=default;
     Midi2usbhub_cli(Preset_manager* pm, Pico_w_connection_manager* cm);
     void task();
-    static uint16_t get_num_commands() { return 4; }
+    static uint16_t get_num_commands() { return 8; }
 private:
     /*
      * The following 3 functions are required by the EmbeddedCli library
@@ -73,6 +73,8 @@ private:
     static void static_show(EmbeddedCli *, char *, void *);
     static void static_reset(EmbeddedCli *, char *, void *);
     static void static_rename(EmbeddedCli *, char *, void *);
+    static void static_screenshot(EmbeddedCli *, char *, void *);
+    static void static_export_all_screenshots(EmbeddedCli *, char *, void *);
     // data
     EmbeddedCli* cli;
 };

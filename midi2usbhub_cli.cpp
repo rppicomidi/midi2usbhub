@@ -36,7 +36,7 @@ rppicomidi::Midi2usbhub_cli::Midi2usbhub_cli(Preset_manager* pm, Pico_w_connecti
         .rxBufferSize = 64,
         .cmdBufferSize = 64,
         .historyBufferSize = 128,
-        .maxBindingCount = static_cast<uint16_t>(6 +
+        .maxBindingCount = static_cast<uint16_t>(get_num_commands() +
                             Preset_manager_cli::get_num_commands() +
                             Pico_lfs_cli::get_num_commands() +
                             Pico_fatfs_cli::get_num_commands() +
@@ -78,6 +78,16 @@ rppicomidi::Midi2usbhub_cli::Midi2usbhub_cli(Preset_manager* pm, Pico_w_connecti
                                        false,
                                        this,
                                        static_show}));
+    assert(embeddedCliAddBinding(cli, {"screenshot",
+                                       "take a screenshot of the current OLED screen",
+                                       false,
+                                       this,
+                                       static_screenshot}));
+    assert(embeddedCliAddBinding(cli, {"export_screenshots",
+                                       "export all screenshots to USB flash drive",
+                                       false,
+                                       this,
+                                       static_export_all_screenshots}));
     Preset_manager_cli pm_cli(cli, pm);
     Pico_lfs_cli lfs_cli(cli);
     Pico_fatfs_cli fatfs_cli(cli);
@@ -267,5 +277,23 @@ void rppicomidi::Midi2usbhub_cli::static_rename(EmbeddedCli *cli, char *args, vo
         default:
             printf("unknown return from rename()\r\n");
             break;
+    }
+}
+
+
+void rppicomidi::Midi2usbhub_cli::static_screenshot(EmbeddedCli*, char*, void*)
+{
+    Midi2usbhub::instance().screenshot();
+    printf("Screenshot done\r\n");
+}
+
+void rppicomidi::Midi2usbhub_cli::static_export_all_screenshots(EmbeddedCli *, char *, void *)
+{
+    printf("Export all screenshots...");
+    if (Midi2usbhub::instance().export_screenshots()) {
+        printf("OK\r\n");
+    }
+    else {
+        printf("Failed\r\n");
     }
 }

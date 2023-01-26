@@ -489,6 +489,160 @@ FRESULT rppicomidi::Preset_manager::restore_preset(const char* preset_name)
     return FR_OK;
 }
 
+bool rppicomidi::Preset_manager::save_screenshot(const uint8_t* bmp, const int nbytes)
+{
+    int err = pico_mount(false);
+    if (err != LFS_ERR_OK)
+        return false;
+    lfs_dir_t dir;
+    err = lfs_dir_open(&dir, base_screenshot_path);
+    if (err == LFS_ERR_OK) {
+        lfs_dir_close(&dir);
+    }
+    else if (err == LFS_ERR_NOENT) {
+        // directory does not exist. Need to create it
+        err = pico_mkdir(base_screenshot_path);
+        if (err != LFS_ERR_OK) {
+            pico_unmount();
+            printf("cannot make directory %s\r\n", base_screenshot_path);
+            return false;
+        }
+    }
+    else {
+        pico_unmount();
+        printf("error %s opening directory %s\r\n", pico_errmsg(err), base_screenshot_path);
+        return false;
+    }
+    uint16_t year;
+    uint8_t month, day, hour, minute, second;
+    Rp2040_rtc::instance().get_date(year, month, day);
+    Rp2040_rtc::instance().get_time(hour, minute, second);
+    char path[128];
+    snprintf(path, sizeof(path)-1, "%s/HUB%02u%02u%04u%02u%02u%02u.bmp", base_screenshot_path, month, day, year, hour, minute, second);
+    path[sizeof(path)-1] = '\0';
+    lfs_file_t file;
+    err = lfs_file_open(&file, path, LFS_O_WRONLY | LFS_O_CREAT | LFS_O_TRUNC);
+    if (err != LFS_ERR_OK) {
+        pico_unmount();
+        printf("error %s opening file %s for write\r\n", pico_errmsg(err), path);
+        return false;
+    }
+    err = lfs_file_write(&file, bmp, nbytes);
+    if (err != nbytes) {
+        printf("error %s writing BMP data to %s\r\n", pico_errmsg(err), path);
+    }
+    lfs_file_close(&file);
+    pico_unmount();
+    return err == nbytes;
+}
+
+FRESULT rppicomidi::Preset_manager::export_all_screenshots()
+{
+    FRESULT fatres = f_chdrive("0:");
+    if (fatres != FR_OK)
+        return fatres;
+    fatres = f_chdir("/");
+    if (fatres != FR_OK)
+        return fatres;
+    lfs_dir_t dir;
+    int err = pico_mount(false);
+    if (err)
+        return FR_INT_ERR;
+    err = lfs_dir_open(&dir, base_screenshot_path);
+    if (err) {
+        pico_unmount();
+        return FR_INT_ERR;
+    }
+
+    struct lfs_info info;
+    bool flash_file_directory_ok = false;
+    while (true) {
+        int res = lfs_dir_read(&dir, &info);
+        if (res < 0) {
+            lfs_dir_close(&dir);
+            pico_unmount();
+            return FR_INT_ERR;
+        }
+
+        if (res == 0) {
+            break;
+        }
+        // There is at least one screenshot file. Make sure there is a directory to store it in.
+        if (!flash_file_directory_ok) {
+            fatres = f_chdir(base_screenshot_path);
+            if (fatres == FR_NO_PATH) {
+                fatres = f_mkdir(base_screenshot_path);
+                if (fatres != FR_OK) {
+                    lfs_dir_close(&dir);
+                    pico_unmount();
+                    return fatres;
+                }
+            }
+            fatres = f_chdir(base_screenshot_path);
+            if (fatres != FR_OK) {
+                lfs_dir_close(&dir);
+                pico_unmount();
+                return fatres;
+            }
+
+            flash_file_directory_ok = true;
+        }
+
+        if(info.type == LFS_TYPE_REG) {
+            char path[256];
+            strcpy(path, base_screenshot_path);
+            strcat(path,"/");
+            strcat(path, info.name);
+            lfs_file_t file;
+            err = lfs_file_open(&file, path, LFS_O_RDONLY);
+            if (err != LFS_ERR_OK) {
+                lfs_dir_close(&dir);
+                pico_unmount();
+                return FR_INT_ERR;
+            }
+            uint8_t* bmp = new uint8_t[info.size];
+            lfs_size_t nread = lfs_file_read(&file, bmp, info.size);
+            lfs_file_close(&file);
+            if (nread == info.size) {
+                FIL bufile;
+                fatres = f_open(&bufile, info.name, FA_CREATE_ALWAYS | FA_WRITE);
+                if (fatres != FR_OK) {
+                    delete[] bmp;
+                    lfs_dir_close(&dir);
+                    pico_unmount();
+                    return fatres;
+                }
+                UINT written;
+                fatres = f_write(&bufile, bmp, nread, &written);
+                delete[] bmp;
+                f_close(&bufile);
+                if (fatres != FR_OK) {
+                    lfs_dir_close(&dir);
+                    pico_unmount();
+                    return fatres;
+                }
+                printf("exported BMP file 0:%s/%s\r\n", base_screenshot_path, info.name);
+            }
+            else {
+                delete[] bmp;
+                lfs_dir_close(&dir);
+                pico_unmount();
+                return FR_INT_ERR;
+            }
+        }
+    }
+
+    err = lfs_dir_close(&dir);
+    if (err) {
+        pico_unmount();
+        return FR_INT_ERR;
+    }
+    pico_unmount();
+    return FR_OK;
+}
+
+
+
 //-------------MSC/FATFS IMPLEMENTATION -------------//
 static scsi_inquiry_resp_t inquiry_resp;
 static FATFS fatfs[FF_VOLUMES];

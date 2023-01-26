@@ -112,6 +112,9 @@ public:
 
     void register_current_preset_change_cb(void* context, void (*cb)(void* context_)) {current_preset_changed.context = context; current_preset_changed.cb = cb; }
     void register_preset_list_change_cb(void* context, void (*cb)(void* context_)) { preset_list_changed.context = context; preset_list_changed.cb = cb; }
+
+    bool save_screenshot(const uint8_t* bmp, const int nbytes);
+    FRESULT export_all_screenshots();
 private:
     /**
      * @brief set raw_settings_ptr to point to the data contained in the settings
@@ -142,5 +145,6 @@ private:
     Changed_cb preset_list_changed;
     static constexpr const char* preset_dir_name = "/rppicomidi-midi2usbhub";
     static constexpr const char* current_preset_filename = "current-preset";
+    static constexpr const char* base_screenshot_path = "/rppicomidi-screenshots";
 };
 }
