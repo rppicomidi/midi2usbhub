@@ -22,6 +22,13 @@
  * SOFTWARE.
  * 
  */
+#ifdef NDEBUG
+// Need to do this here for release builds or no CLI commands will be added
+// All build variants except DEBUG define NDEBUG, which makes assert() macro generate
+// no code at all, which prevents msc_demo_cli_init() from adding any CLI commands.
+#undef NDEBUG
+#endif
+
 #include "preset_manager_cli.h"
 #include <string>
 
