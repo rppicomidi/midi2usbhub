@@ -94,7 +94,11 @@ group).
 ## Using a tinyusb library that supports USB MIDI Host
 The Pico SDK uses the main repository for tinyusb as a git submodule. Until the USB Host driver for MIDI is
 incorporated in the main repository for tinyusb, you will need to use the latest development version in pull
-request 1627 forked version. This is how I do it.
+request 1627 forked version. To make matters worse, this pull request is getting old and it is rapidly
+diverging from the mainline of tinyusb, so I have been updating this pull request in my local workspace. I
+have pushed my changes up to my own fork of tinyusb that I keep in a branch called pr-midihost. Sorry. I know. Yuk.
+
+Here is how you can get my code.
 
 1. If you have not already done so, follow the instructions for installing the Raspberry Pi Pico SDK in Chapter 2 of the 
 [Getting started with Raspberry Pi Pico](https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf)
@@ -103,13 +107,21 @@ document. In particular, make sure `PICO_SDK_PATH` is set to the directory where
 ```
 cd ${PICO_SDK_PATH}/lib/tinyusb
 ```
-3. Get the pull request midihost branch
+3. Create a git remote to point to my fork of tinyusb and get my updated branch of Pull Request 1627, which is called pr-midihost (short for pull-request-midihost)
 ```
-git fetch origin pull/1627/head:pr-midihost
+git remote add rppicomidi https://github.com/rppicomidi/tinyusb.git
+git fetch rppicomidi
 ```
-4. Checkout the branch
+4. Checkout the appropriate branch of my forked code
 ```
-git checkout pr-midihost
+git checkout -b pr-midihost rppicomidi/pr-midihost
+```
+5. In case you ever need to get back to the official tinyusb code for some other
+project, just check out the master branch and pull the latest code. Don't do this
+for this this project.
+```
+git checkout master
+git pull
 ```
 ## Get the project code
 Clone the midiusb2hub project to a directory at the same level as the pico-sdk directory.
