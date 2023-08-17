@@ -16,6 +16,9 @@ your presets to a USB Flash drive connected to the USB hub. Presets are stored i
 JSON format.
 
 # Project Status
+### 17-Aug-2023
+- Updated the project to use the master branch of TinyUSB and `lib/usb_midi_host` as an application USB Host driver.
+- Removed references to patching the TinyUSB library; it is no longer required.
 ### 16-Dec-2022
 - Separated the CLI from the Midi2usbhub class and from the Preset_manager class.
 - Preset_manager class is no longer a singleton but instead a member of Midi2usbhub class
@@ -84,60 +87,46 @@ shorted to ground for very long because it will fry the resistor. I substituted 
 PC900V for the MIDI IN circuit's H11L1M because it was what I had.
 
 # Setting Up Your Build and Debug Environment
-I am running Ubuntu Linux 20.04LTS on an old PC. I have Visual Studio Code (VS Code)
+I am running Ubuntu Linux 22.04LTS on an old PC. I have Visual Studio Code (VS Code)
 installed and went
 through the tutorial in Chapter 7 or [Getting started with Raspberry Pi Pico](https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf) to make sure it was working
 first. I use a picoprobe for debugging, so I have openocd running in a terminal window.
 I use minicom for the serial port terminal (make sure your linux account is in the dialup
 group).
 
-## Using a tinyusb library that supports USB MIDI Host
-The Pico SDK uses the main repository for tinyusb as a git submodule. Until the USB Host driver for MIDI is
-incorporated in the main repository for tinyusb, you will need to use the latest development version in pull
-request 1627 forked version. To make matters worse, this pull request is getting old and it is rapidly
-diverging from the mainline of tinyusb, so I have been updating this pull request in my local workspace. I
-have pushed my changes up to my own fork of tinyusb that I keep in a branch called pr-midihost. Sorry. I know. Yuk.
-
-Here is how you can get my code.
+## Use a TinyUSB library version that supports application host drivers
+The USB MIDI host driver is currently not part of the TinyUSB stack. It is an
+application host driver found in this project's `lib/usb_midi_host` directory.
+The Pico SDK uses the main repository for TinyUSB as a git submodule. The version
+of TinyUSB that ships with the Pico SDK 1.5.1 does not support application host
+drivers. That feature was added 15-Aug-2023. You will likely need the latest version
+of the TinyUSB library for this code to work correctly. The following describes
+how to make sure your Pico SDK version's TinyUSB library supports application host
+drivers.
 
 1. If you have not already done so, follow the instructions for installing the Raspberry Pi Pico SDK in Chapter 2 of the 
 [Getting started with Raspberry Pi Pico](https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf)
 document. In particular, make sure `PICO_SDK_PATH` is set to the directory where you installed the pico-sdk.
-2. Set the working directory to the tinyusb library
+2. Set the working directory to the tinyusb library and make sure you are on the main branch.
 ```
 cd ${PICO_SDK_PATH}/lib/tinyusb
-```
-3. Create a git remote to point to my fork of tinyusb and get my updated branch of Pull Request 1627, which is called pr-midihost (short for pull-request-midihost)
-```
-git remote add rppicomidi https://github.com/rppicomidi/tinyusb.git
-git fetch rppicomidi
-```
-4. Checkout the appropriate branch of my forked code
-```
-git checkout -b pr-midihost rppicomidi/pr-midihost
-```
-5. In case you ever need to get back to the official tinyusb code for some other
-project, just check out the master branch and pull the latest code. Don't do this
-for this this project.
-```
 git checkout master
+```
+3. Check the date on the last commit to the TinyUSB library master branch.
+```
+git log -1
+```
+4. If the `Date:` is >= 15-Aug-2023, your TinyUSB library should be fine. If not, get the latest
+```
 git pull
 ```
+
 ## Get the project code
 Clone the midiusb2hub project to a directory at the same level as the pico-sdk directory.
 
 ```
-cd [one directory above the pico-sdk directory]
+cd ${PICO_SDK_PATH}/..
 git clone --recurse-submodules https://github.com/rppicomidi/midi2usbhub.git
-```
-## Patch the tinyusb library
-As of this writing, issue 1721 exists in the midihost pull request. You need to patch this issue or
-you will have problems with large MIDI transfers or with using a USB Flash drive. The patch
-disables double-buffered transfers in Host mode for all USB endpoints except the control endpoint.
-This assumes you installed your code in the directory `${PICO_MIDI_PROJECTS}/midi2usbhub`
-```
-cd ${PICO_SDK_PATH}/lib/tinyusb
-git apply ${PICO_MIDI_PROJECTS}/midi2usbhub/patches/0001-Fix-RP2040-Issue-1721.patch
 ```
 
 ## Command Line Build (skip if you want to use Visual Studio Code)
