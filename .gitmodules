@@ -10,3 +10,6 @@
 [submodule "ext_lib/littlefs-lib"]
 	path = ext_lib/littlefs-lib
 	url = https://github.com/rppicomidi/littlefs-lib
+[submodule "lib/usb_midi_host"]
+	path = lib/usb_midi_host
+	url = https://github.com/rppicomidi/usb_midi_host.git

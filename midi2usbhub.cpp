@@ -41,7 +41,7 @@
 #include "pico/stdlib.h"
 #include "pico/binary_info.h"
 #include "midi_uart_lib.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "preset_manager.h"
 #include "diskio.h"
 #ifdef RPPICOMIDI_PICO_W
@@ -277,23 +277,15 @@ void rppicomidi::Midi2usbhub::blink_led()
     int64_t diff = absolute_time_diff_us(previous_timestamp, now);
     if (diff > 1000000)
     {
+    	// Set the LED to the current led_state
         #ifndef RPPICOMIDI_PICO_W
         gpio_put(LED_GPIO, led_state);
         #else
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
         #endif
+        // Toggle the led_state & update the timestamp
         led_state = !led_state;
         previous_timestamp = now;
-    }
-}
-
-void rppicomidi::Midi2usbhub::poll_usb_rx()
-{
-    for (auto &in_port : midi_in_port_list)
-    {
-        // poll each connected MIDI IN port only once per device address
-        if (in_port->devaddr != uart_devaddr && in_port->cable == 0 && tuh_midi_configured(in_port->devaddr))
-            tuh_midi_read_poll(in_port->devaddr);
     }
 }
 
@@ -437,7 +429,6 @@ void rppicomidi::Midi2usbhub::task()
 
     poll_midi_uart_rx();
     flush_usb_tx();
-    poll_usb_rx();
     midi_uart_drain_tx_buffer(midi_uart_instance);
 
     cli.task();
@@ -698,3 +689,12 @@ void tuh_midi_tx_cb(uint8_t dev_addr)
     (void)dev_addr;
 }
 
+#if 0
+// Install the USB MIDI Host class driver
+usbh_class_driver_t const* usbh_app_driver_get_cb(uint8_t* driver_count)
+{
+  static usbh_class_driver_t host_driver = { midih_init, midih_open, midih_set_config, midih_xfer_cb, midih_close };
+  *driver_count = 1;
+  return &host_driver;
+}
+#endif
