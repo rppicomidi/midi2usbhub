@@ -171,7 +171,7 @@ namespace rppicomidi
          */
         void task();
 
-        Midi_device_info* get_attached_device(size_t addr) { if (addr < 1 || addr > CFG_TUH_DEVICE_MAX) return nullptr; return &attached_devices[addr]; }
+        Midi_device_info* get_attached_device(size_t addr) { if (addr < 1 || addr > uart_devaddr) return nullptr; return &attached_devices[addr]; }
         const std::vector<Midi_out_port *>& get_midi_out_port_list() {return midi_out_port_list; }
         const std::vector<Midi_in_port *>& get_midi_in_port_list() {return midi_in_port_list; }
     private:
