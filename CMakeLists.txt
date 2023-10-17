@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
 
 set(BOARD pico_sdk)
+# Set the TinyUSB log level
+# set(LOG 2)
 include(pico_sdk_import.cmake)
 
 set(target_proj midi2usbhub)
@@ -36,7 +38,7 @@ target_include_directories(${target_proj} PRIVATE
 )
 
 target_link_options(${target_proj} PRIVATE -Xlinker --print-memory-usage)
-target_compile_options(${target_proj} PRIVATE -Wall -Wextra -DPICO_HEAP_SIZE=0x20000 -DCFG_TUSB_DEBUG=1)
+target_compile_options(${target_proj} PRIVATE -Wall -Wextra -DPICO_HEAP_SIZE=0x20000)
 target_link_libraries(${target_proj} midi_uart_lib tinyusb_host tinyusb_board usb_midi_host_app_driver ring_buffer_lib pico_stdlib
 littlefs-lib msc_fatfs rp2040_rtc)
 if(DEFINED PICO_BOARD)
